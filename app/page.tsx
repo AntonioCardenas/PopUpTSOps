@@ -11,7 +11,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">VivaCity Meal System</h1>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">PopUpTicketsSystem</h1>
           <p className="text-gray-600">Choose your action below</p>
         </div>
 
@@ -21,7 +21,7 @@ export default function HomePage() {
               <QrCode className="h-12 w-12 mx-auto text-blue-600 mb-2" />
               <CardTitle>Generate QR Code</CardTitle>
               <p className="text-sm text-muted-foreground">
-                For attendees to generate their meal QR codes
+                For attendees to generate their drinks QR codes
               </p>
             </CardHeader>
             <CardContent>
@@ -34,12 +34,12 @@ export default function HomePage() {
               <Camera className="h-12 w-12 mx-auto text-green-600 mb-2" />
               <CardTitle>POS Scanner</CardTitle>
               <p className="text-sm text-muted-foreground">
-                For staff to scan and redeem meal QR codes
+                For staff to scan and redeem drinks QR codes
               </p>
             </CardHeader>
             <CardContent>
               <Link href="/pos" className="block">
-                <Button className="w-full h-12 text-lg">
+                <Button className="btn bg-slate-600 text-white w-full h-12 text-lg ">
                   Go to POS Scanner
                 </Button>
               </Link>

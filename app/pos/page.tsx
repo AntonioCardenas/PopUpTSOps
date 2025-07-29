@@ -8,7 +8,7 @@ import QRScanner from "@/components/qr-scanner"
 import { collection, query, where, getDocs, addDoc, doc, updateDoc, increment } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { toast } from "@/hooks/use-toast"
-import { CheckCircle, XCircle, AlertCircle, Camera, Info } from "lucide-react"
+import { CheckCircle, XCircle, AlertCircle, Camera, Info, Coffee } from "lucide-react"
 import { loadLumaData, findGuestByEmail, validateGuestAccess, formatGuestInfo, type LumaGuest } from "@/lib/luma-utils"
 
 interface ScannedData {
@@ -26,8 +26,9 @@ interface ScanRecord {
     attendeeName: string
     scannedAt: string
     lumaVerified: boolean
-    mealRedeemed: boolean
+    drinksRedeemed: boolean
     scanCount: number
+    remainingDrinks: number
 }
 
 export default function POSPage() {
@@ -57,7 +58,7 @@ export default function POSPage() {
     const checkScanHistory = async (email: string): Promise<ScanRecord | null> => {
         try {
             const scansQuery = query(
-                collection(db, "mealScans"),
+                collection(db, "drinksScans"),
                 where("email", "==", email.toLowerCase())
             )
             const scansSnapshot = await getDocs(scansQuery)
@@ -77,19 +78,20 @@ export default function POSPage() {
         }
     }
 
-    const saveScanRecord = async (data: ScannedData, lumaGuest: LumaGuest | null, scanCount: number) => {
+    const saveScanRecord = async (data: ScannedData, lumaGuest: LumaGuest | null, scanCount: number, remainingDrinks: number) => {
         try {
             const scanRecord = {
                 email: data.email.toLowerCase(),
                 attendeeName: lumaGuest?.guest.name || 'Unknown',
                 scannedAt: new Date().toISOString(),
                 lumaVerified: !!lumaGuest,
-                mealRedeemed: true,
+                drinksRedeemed: true,
                 scanCount: scanCount,
+                remainingDrinks: remainingDrinks,
                 qrData: data
             }
 
-            const docRef = await addDoc(collection(db, "mealScans"), scanRecord)
+            const docRef = await addDoc(collection(db, "drinksScans"), scanRecord)
             return { id: docRef.id, ...scanRecord }
         } catch (error) {
             console.error('Error saving scan record:', error)
@@ -110,14 +112,24 @@ export default function POSPage() {
             const lumaGuest = await checkLumaData(data.email)
             setLumaData(lumaGuest)
 
+            if (!lumaGuest) {
+                toast({
+                    title: "Guest not found",
+                    description: "This email is not registered in the event.",
+                    variant: "destructive",
+                })
+                return
+            }
+
             // Check scan history
             const existingScan = await checkScanHistory(data.email)
             const currentScanCount = existingScan ? existingScan.scanCount : 0
+            const remainingDrinks = 3 - currentScanCount
 
             if (currentScanCount >= 3) {
                 toast({
-                    title: "Maximum scans reached",
-                    description: "This email has already been scanned 3 times.",
+                    title: "No drinks remaining",
+                    description: "This guest has already redeemed all 3 drinks.",
                     variant: "destructive",
                 })
                 setScanRecord(existingScan)
@@ -126,7 +138,8 @@ export default function POSPage() {
 
             // Save the scan record
             const newScanCount = currentScanCount + 1
-            const savedRecord = await saveScanRecord(data, lumaGuest, newScanCount)
+            const newRemainingDrinks = remainingDrinks - 1
+            const savedRecord = await saveScanRecord(data, lumaGuest, newScanCount, newRemainingDrinks)
             setScanRecord(savedRecord)
 
             // Update scan history
@@ -141,8 +154,8 @@ export default function POSPage() {
             }
 
             toast({
-                title: "Scan successful",
-                description: `Meal redeemed for ${lumaGuest?.guest.name || data.email} (Scan ${newScanCount}/3)`,
+                title: "Drink redeemed successfully",
+                description: `${lumaGuest.guest.name} - ${newRemainingDrinks} drinks remaining`,
                 variant: "default",
             })
 
@@ -166,7 +179,7 @@ export default function POSPage() {
 
     const loadRecentScans = async () => {
         try {
-            const scansQuery = query(collection(db, "mealScans"))
+            const scansQuery = query(collection(db, "drinksScans"))
             const scansSnapshot = await getDocs(scansQuery)
 
             const scans = scansSnapshot.docs
@@ -199,8 +212,8 @@ export default function POSPage() {
             <div className="max-w-4xl mx-auto space-y-6">
                 {/* Header */}
                 <div className="text-center">
-                    <h1 className="text-3xl font-bold text-gray-900">POS - Meal Redemption</h1>
-                    <p className="text-gray-600 mt-2">Scan QR codes to redeem meals</p>
+                    <h1 className="text-3xl font-bold text-gray-900">POS - Drinks Redemption</h1>
+                    <p className="text-gray-600 mt-2">Scan QR codes to redeem drinks (3 per guest)</p>
                 </div>
 
                 {/* Stats */}
@@ -209,7 +222,7 @@ export default function POSPage() {
                         <CardContent className="p-6">
                             <div className="text-center">
                                 <p className="text-2xl font-bold text-blue-600">{todayScans}</p>
-                                <p className="text-sm text-gray-600">Today's Scans</p>
+                                <p className="text-sm text-gray-600">Today's Drinks</p>
                             </div>
                         </CardContent>
                     </Card>
@@ -243,7 +256,7 @@ export default function POSPage() {
                         <Button
                             onClick={() => setIsScanning(true)}
                             disabled={isProcessing}
-                            className="w-full h-12 text-lg"
+                            className="w-full h-12 text-lg btn bg-slate-900 text-white"
                         >
                             {isProcessing ? "Processing..." : "Start Scanning"}
                         </Button>
@@ -266,18 +279,19 @@ export default function POSPage() {
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <h3 className="font-semibold text-sm text-gray-600">Attendee</h3>
+                                    <h3 className="font-semibold text-sm text-gray-600">Guest</h3>
                                     <p className="text-lg font-medium">{scanRecord.attendeeName}</p>
                                     <p className="text-sm text-gray-500">{scanRecord.email}</p>
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-sm text-gray-600">Scan Status</h3>
+                                    <h3 className="font-semibold text-sm text-gray-600">Drinks Status</h3>
                                     <div className="flex items-center gap-2">
                                         <Badge variant={scanRecord.lumaVerified ? "default" : "secondary"}>
                                             {scanRecord.lumaVerified ? "Luma Verified" : "Not in Luma"}
                                         </Badge>
-                                        <Badge variant="outline">
-                                            Scan {scanRecord.scanCount}/3
+                                        <Badge variant="outline" className="flex items-center gap-1">
+                                            <Coffee className="h-3 w-3" />
+                                            {scanRecord.remainingDrinks} remaining
                                         </Badge>
                                     </div>
                                 </div>
@@ -286,7 +300,7 @@ export default function POSPage() {
                             {/* Luma Information */}
                             {lumaData && (
                                 <div className="border-t pt-4">
-                                    <h3 className="font-semibold text-sm text-gray-600 mb-2">Luma Information</h3>
+                                    <h3 className="font-semibold text-sm text-gray-600 mb-2">Event Information</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                         <div>
                                             <p><span className="font-medium">Ticket Type:</span> {lumaData.guest.event_ticket.name}</p>
@@ -300,29 +314,27 @@ export default function POSPage() {
                                         </div>
                                     </div>
 
-                                    {/* Access Validation */}
-                                    {(() => {
-                                        const access = validateGuestAccess(lumaData)
-                                        return (
-                                            <div className={`mt-3 p-3 rounded-lg border ${access.hasAccess
-                                                ? 'bg-green-50 border-green-200 text-green-800'
-                                                : 'bg-yellow-50 border-yellow-200 text-yellow-800'
-                                                }`}>
-                                                <div className="flex items-center gap-2">
-                                                    <Info className="h-4 w-4" />
-                                                    <span className="font-medium">
-                                                        {access.hasAccess ? 'Food Access Available' : 'Limited Access'}
-                                                    </span>
-                                                </div>
-                                                <p className="text-sm mt-1">
-                                                    {access.hasAccess
-                                                        ? 'This guest can redeem complementary food.'
-                                                        : access.reason || 'This guest has limited food access.'
-                                                    }
-                                                </p>
-                                            </div>
-                                        )
-                                    })()}
+                                    {/* Drinks Remaining Display */}
+                                    <div className={`mt-3 p-3 rounded-lg border ${scanRecord.remainingDrinks > 0
+                                            ? 'bg-green-50 border-green-200 text-green-800'
+                                            : 'bg-red-50 border-red-200 text-red-800'
+                                        }`}>
+                                        <div className="flex items-center gap-2">
+                                            <Coffee className="h-4 w-4" />
+                                            <span className="font-medium">
+                                                {scanRecord.remainingDrinks > 0
+                                                    ? `${scanRecord.remainingDrinks} drinks remaining`
+                                                    : 'No drinks remaining'
+                                                }
+                                            </span>
+                                        </div>
+                                        <p className="text-sm mt-1">
+                                            {scanRecord.remainingDrinks > 0
+                                                ? `This guest can redeem ${scanRecord.remainingDrinks} more drinks.`
+                                                : 'This guest has used all their drink allocations.'
+                                            }
+                                        </p>
+                                    </div>
                                 </div>
                             )}
 
@@ -342,7 +354,7 @@ export default function POSPage() {
                 {scanHistory.length > 0 && (
                     <Card>
                         <CardHeader>
-                            <CardTitle>Recent Scans</CardTitle>
+                            <CardTitle>Recent Drinks Redemptions</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -361,8 +373,9 @@ export default function POSPage() {
                                             ) : (
                                                 <XCircle className="h-4 w-4 text-red-500" />
                                             )}
-                                            <Badge variant="outline" className="text-xs">
-                                                {scan.scanCount}/3
+                                            <Badge variant="outline" className="text-xs flex items-center gap-1">
+                                                <Coffee className="h-3 w-3" />
+                                                {scan.remainingDrinks}
                                             </Badge>
                                         </div>
                                     </div>

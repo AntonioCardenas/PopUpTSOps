@@ -169,7 +169,7 @@ VivaApp/
 - `pnpm start` - Start production server
 - `pnpm lint` - Run ESLint
 - `node scripts/add-admin.js` - Add admin users (see ADMIN_SETUP.md)
-- `node scripts/add-meal-entitlements.js` - Add meal entitlements
+- `node scripts/add-meal-entitlements.js` - Add Drinksentitlements
 - `node scripts/create-admin.js` - Create new admin user
 
 ## API Routes

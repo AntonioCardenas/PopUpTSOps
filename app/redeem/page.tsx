@@ -53,7 +53,7 @@ export default function RedeemPage() {
   const [useGuestOfWeek, setUseGuestOfWeek] = useState(false)
 
   // Computed values
-  const buttonText = qrCodeDataUrl ? "Use Another Email" : "Check Meal Entitlements"
+  const buttonText = qrCodeDataUrl ? "Use Another Email" : "Check DrinksEntitlements"
   const showForm = !qrCodeDataUrl
 
   const isValidEmail = (email: string): boolean => {
@@ -195,7 +195,7 @@ export default function RedeemPage() {
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle>Your Meal QR Code</CardTitle>
+            <CardTitle>Your DrinksQR Code</CardTitle>
             <p className="text-sm text-muted-foreground">Show this code to an admin or volunteer to redeem your meal</p>
           </CardHeader>
           <CardContent className="flex flex-col items-center space-y-4">
@@ -214,7 +214,7 @@ export default function RedeemPage() {
               )}
               <p className="text-xs text-muted-foreground">This QR code is valid for one-time use</p>
             </div>
-            <Button onClick={onSubmit} className="w-full bg-blue-600 hover:bg-blue-700">
+            <Button onClick={onSubmit} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
               {buttonText}
             </Button>
           </CardContent>
@@ -247,7 +247,7 @@ export default function RedeemPage() {
                 autoComplete="email"
               />
               <div className="text-xs text-gray-600">
-                We'll check your meal entitlements for today.
+                We'll check your Drinksentitlements for today.
               </div>
               {emailTouched && !isValidEmail(email) && (
                 <div className="text-sm text-red-600">Please enter a valid email address.</div>
@@ -257,7 +257,7 @@ export default function RedeemPage() {
             <Button
               type="submit"
               disabled={!email || !isValidEmail(email) || isLoading}
-              className="w-full btn btn-blue bg-blue-600 hover:bg-blue-700"
+              className="w-full btn btn-blue bg-blue-600 hover:bg-blue-700 text-white"
             >
               {isLoading ? (
                 <span className="flex items-center justify-center">
@@ -275,7 +275,7 @@ export default function RedeemPage() {
           {isSearchingEmail && (
             <div className="mt-4 text-center">
               <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-              Checking meal entitlements...
+              Checking Drinksentitlements...
             </div>
           )}
 
@@ -330,7 +330,7 @@ export default function RedeemPage() {
                           <p className="font-medium text-green-800">Guest of the Week (+1)</p>
                         </div>
                         <p className="text-xs text-green-700">
-                          Use your weekly +1 meal entitlement? This can only be used once per week.
+                          Use your weekly +1 Drinksentitlement? This can only be used once per week.
                         </p>
                       </div>
                       <Button
