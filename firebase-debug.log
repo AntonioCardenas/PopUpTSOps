@@ -1,0 +1,53 @@
+[debug] [2025-07-14T19:06:02.029Z] ----------------------------------------------------------------------
+[debug] [2025-07-14T19:06:02.031Z] Command:       /Users/antoniocardenas/.nvm/versions/node/v22.13.1/bin/node /Users/antoniocardenas/.nvm/versions/node/v22.13.1/bin/firebase init
+[debug] [2025-07-14T19:06:02.031Z] CLI Version:   14.5.1
+[debug] [2025-07-14T19:06:02.031Z] Platform:      darwin
+[debug] [2025-07-14T19:06:02.031Z] Node Version:  v22.13.1
+[debug] [2025-07-14T19:06:02.032Z] Time:          Mon Jul 14 2025 12:06:02 GMT-0700 (Pacific Daylight Time)
+[debug] [2025-07-14T19:06:02.032Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-07-14T19:06:02.035Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-14T19:06:02.035Z] > authorizing via signed-in user (antonioalx66@gmail.com)
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  /Users/antoniocardenas/Documents/GitHub/VivaApp
+
+[info] 
+=== Project Setup
+[info] 
+[info] First, let's associate this project directory with a Firebase project.
+[info] You can create multiple project aliases by running firebase use --add, 
+[info] but for now we'll just set up a default project.
+[info] 
+[debug] [2025-07-14T19:06:06.342Z] Checked if tokens are valid: false, expires at: 1751988003812
+[debug] [2025-07-14T19:06:06.343Z] Checked if tokens are valid: false, expires at: 1751988003812
+[debug] [2025-07-14T19:06:06.343Z] > refreshing access token with scopes: []
+[debug] [2025-07-14T19:06:06.346Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-07-14T19:06:06.346Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-14T19:06:06.551Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-07-14T19:06:06.551Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-14T19:06:06.568Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=100
+[debug] [2025-07-14T19:06:07.415Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2025-07-14T19:06:07.415Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[info] i  Don't want to scroll through all your projects? If you know your project ID, you can initialize it directly using firebase init --project <project_id>.
+ 
+[debug] [2025-07-14T19:06:16.697Z] ExitPromptError: User force closed the prompt with SIGINT
+    at Interface.sigint (/Users/antoniocardenas/.nvm/versions/node/v22.13.1/lib/node_modules/firebase-tools/node_modules/@inquirer/core/dist/commonjs/lib/create-prompt.js:101:37)
+    at Interface.emit (node:events:524:28)
+    at Interface.emit (node:domain:489:12)
+    at [_ttyWrite] [as _ttyWrite] (node:internal/readline/interface:1124:18)
+    at ReadStream.onkeypress (node:internal/readline/interface:263:20)
+    at ReadStream.emit (node:events:536:35)
+    at ReadStream.emit (node:domain:489:12)
+    at emitKeys (node:internal/readline/utils:370:14)
+    at emitKeys.next (<anonymous>)
+    at ReadStream.onData (node:internal/readline/emitKeypressEvents:64:36)
+[error] 
+[error] Error: An unexpected error has occurred.
