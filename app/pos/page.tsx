@@ -51,9 +51,9 @@ interface LumaGuest {
     guest: {
         api_id: string
         approval_status: string
-        email: string
-        name: string
-        checked_in_at: string
+        user_email: string
+        user_name: string
+        checked_in_at: string | null
         event_ticket: {
             name: string
             checked_in_at: string | null
@@ -114,6 +114,75 @@ export default function POSPage() {
         return local.charAt(0) + '*'.repeat(local.length - 2) + local.charAt(local.length - 1) + '@' + domain
     }
 
+    const getErrorMessage = (error: any, context: string = ''): { title: string; description: string } => {
+        console.error(`❌ Error in ${context}:`, error)
+
+        // Network errors
+        if (error?.message?.includes('fetch') || error?.message?.includes('network')) {
+            return {
+                title: "🌐 Network Connection Issue",
+                description: "Unable to connect to Lu.ma servers. Please check your internet connection and try again."
+            }
+        }
+
+        // API errors
+        if (error?.status === 401) {
+            return {
+                title: "🔑 Authentication Error",
+                description: "Lu.ma API key is invalid or expired. Please contact support."
+            }
+        }
+
+        if (error?.status === 403) {
+            return {
+                title: "🚫 Access Denied",
+                description: "This event is not accessible or you don't have permission to access it."
+            }
+        }
+
+        if (error?.status === 404) {
+            return {
+                title: "🔍 Guest Not Found",
+                description: "This Lu.ma check-in URL is invalid or the guest is not registered for this event."
+            }
+        }
+
+        if (error?.status === 429) {
+            return {
+                title: "⏱️ Too Many Requests",
+                description: "Too many requests to Lu.ma. Please wait a moment and try again."
+            }
+        }
+
+        if (error?.status >= 500) {
+            return {
+                title: "🔧 Lu.ma Service Unavailable",
+                description: "Lu.ma servers are experiencing issues. Please try again in a few minutes."
+            }
+        }
+
+        // Firebase errors
+        if (error?.code === 'permission-denied') {
+            return {
+                title: "🔒 Database Access Denied",
+                description: "Unable to save guest data. Please contact support."
+            }
+        }
+
+        if (error?.code === 'unavailable') {
+            return {
+                title: "🔥 Database Unavailable",
+                description: "Database is temporarily unavailable. Please try again in a moment."
+            }
+        }
+
+        // Generic error with more context
+        return {
+            title: "⚠️ Processing Error",
+            description: `Unable to process the check-in. ${error?.message || 'Please try again or contact support if the issue persists.'}`
+        }
+    }
+
     const findOrCreateGuestRecord = async (publicKey: string, email: string, attendeeName: string, lumaVerified: boolean, eventId?: string): Promise<GuestRecordResult> => {
         try {
             console.log('🔥 Firebase: Starting findOrCreateGuestRecord with:', { publicKey, email, attendeeName, lumaVerified, eventId })
@@ -158,7 +227,8 @@ export default function POSPage() {
             return { record: createdRecord, isNewGuest: true }
         } catch (error) {
             console.error('🔥 Firebase: Error in findOrCreateGuestRecord:', error)
-            throw error
+            const errorInfo = getErrorMessage(error, 'Firebase findOrCreateGuestRecord')
+            throw new Error(`${errorInfo.title}: ${errorInfo.description}`)
         }
     }
 
@@ -296,12 +366,13 @@ export default function POSPage() {
 
                             // Create LumaGuest object
                             const lumaGuest: LumaGuest = {
+                                bette
                                 api_id: eventId,
                                 guest: {
                                     api_id: eventId,
                                     approval_status: lumaData.guest.approval_status || "approved",
-                                    email: guestEmail,
-                                    name: guestName,
+                                    user_email: guestEmail,
+                                    user_name: guestName,
                                     checked_in_at: lumaData.guest.checked_in_at || new Date().toISOString(),
                                     event_ticket: {
                                         name: lumaData.guest.event_ticket?.name || "Lu.ma Event Ticket",
@@ -334,7 +405,7 @@ export default function POSPage() {
                             const { record: guestRecord, isNewGuest } = await findOrCreateGuestRecord(
                                 data.publicKey!,
                                 data.email,
-                                lumaGuest.guest.name,
+                                lumaGuest.guest.user_name,
                                 true, // Always verified for Lu.ma guests
                                 data.eventId
                             )
@@ -345,7 +416,7 @@ export default function POSPage() {
                             if (isNewGuest) {
                                 console.log('🎉 New guest detected, showing welcome toast')
                                 toast({
-                                    title: `👋 Welcome ${obfuscateName(lumaGuest.guest.name)}!`,
+                                    title: `👋 Welcome ${obfuscateName(lumaGuest.guest.user_name)}!`,
                                     description: `You have ${DRINKS_LIMIT} drinks and ${MEALS_LIMIT} meals available.`,
                                     variant: "success",
                                 })
@@ -363,7 +434,7 @@ export default function POSPage() {
 
                                 console.log('🍹 Available items:', availableItems)
                                 toast({
-                                    title: `🍹 Available for ${obfuscateName(lumaGuest.guest.name)}`,
+                                    title: `🍹 Available for ${obfuscateName(lumaGuest.guest.user_name)}`,
                                     description: `Ready to claim: ${availableItems.join(' and ')}`,
                                     variant: "success",
                                 })
@@ -472,10 +543,10 @@ export default function POSPage() {
                             return
                         }
                     } catch (apiError) {
-                        console.error('❌ API Error details:', apiError)
+                        const errorInfo = getErrorMessage(apiError, 'Lu.ma API call')
                         toast({
-                            title: "API Error",
-                            description: "Failed to verify Lu.ma check-in. Please try again.",
+                            title: errorInfo.title,
+                            description: errorInfo.description,
                             variant: "destructive",
                         })
                         setIsProcessing(false)
@@ -483,8 +554,8 @@ export default function POSPage() {
                     }
                 } else {
                     toast({
-                        title: "Invalid Lu.ma URL",
-                        description: "The Lu.ma URL format is not recognized.",
+                        title: "🔗 Invalid Lu.ma URL",
+                        description: "The scanned URL doesn't appear to be a valid Lu.ma check-in link. Please scan the correct QR code from your Lu.ma event.",
                         variant: "destructive",
                     })
                     setIsProcessing(false)

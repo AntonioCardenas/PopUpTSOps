@@ -1,24 +1,22 @@
-# Firebase Security Rules - Less Restrictive
+# Firebase Security Rules - Development Ready
 
-## 🔓 Updated Security Rules
+## 🔓 Updated Security Rules for Development
 
-Replace your current Firestore security rules with these less restrictive ones:
+Replace your current Firestore security rules with these development-ready ones:
 
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Redemption scans collection - Allow read/write but prevent deletion and massive downloads
+    // Redemption scans collection - Allow all operations except delete
     match /redemptionScans/{document} {
-      allow read: if request.query.limit <= 100; // Limit to 100 records per query
-      allow create, update: if true;
-      allow delete: if false; // Prevent deletion of redemption scan records
+      allow read, create, update: if true; // Allow read, create, update
+      allow delete: if false; // Prevent deletion of audit trail
     }
 
-    // Event participants collection - Allow read/write but prevent deletion and massive downloads
+    // Event participants collection - Allow all operations except delete
     match /ethpartyparticipants/{document} {
-      allow read: if request.query.limit <= 50; // Limit to 50 records per query
-      allow create, update: if true;
+      allow read, create, update: if true; // Allow read, create, update
       allow delete: if false; // Prevent deletion of participant data
     }
   }
@@ -27,39 +25,30 @@ service cloud.firestore {
 
 ## 🚨 Important Security Note
 
-**These rules are less restrictive and should only be used for:**
+**These rules are development-friendly and should only be used for:**
 
 - Development/testing environments
 - Internal/private events
 - When you have other security measures in place
 
-## 🔒 More Secure Alternative (Recommended for Production)
+## 🔒 Production Rules (Allow All Operations Except Delete)
 
-If you want better security while still allowing the system to work:
+For production environments where you want to allow all operations except deletion:
 
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Redemption scans collection - Allow operations but prevent deletion and massive downloads
+    // Redemption scans collection - Allow all operations except delete
     match /redemptionScans/{document} {
-      allow read: if request.query.limit <= 100; // Limit to 100 records per query
-      allow create, update: if true;
+      allow read, create, update: if true; // Allow read, create, update
       allow delete: if false; // Prevent deletion of audit trail
     }
 
-    // Event participants collection - Allow read/write but prevent deletion and massive downloads
+    // Event participants collection - Allow all operations except delete
     match /ethpartyparticipants/{document} {
-      allow read: if request.query.limit <= 50; // Limit to 50 records per query
-      allow create, update: if true;
+      allow read, create, update: if true; // Allow read, create, update
       allow delete: if false; // Prevent deletion of participant data
-    }
-
-    // VivaCity users collection - Allow operations but prevent deletion and massive downloads
-    match /VivaCityUsers/{document} {
-      allow read: if request.query.limit <= 50; // Limit to 50 records per query
-      allow create, update: if true;
-      allow delete: if false; // Prevent deletion of user data
     }
   }
 }
@@ -80,138 +69,95 @@ service cloud.firestore {
 3. **Replace the Rules:**
 
    - Delete the current rules
-   - Paste the new rules from above
+   - Paste the new rules from above (use the development version first)
    - Click "Publish"
 
-4. **Test the System:**
+4. **Wait for Rules to Propagate:**
+
+   - Rules can take up to 1 minute to propagate
+   - Try scanning again after waiting
+
+5. **Test the System:**
    - Try scanning a QR code
    - Check if the error is resolved
 
-## 🔍 Troubleshooting
+## 🔍 Troubleshooting Steps
 
-If you're still getting errors after applying these rules:
+If you're still getting permission errors after applying these rules:
 
-1. **Wait for Rules to Propagate:**
+### 1. Verify Rules Are Applied
 
-   - Rules can take up to 1 minute to propagate
-   - Try again after waiting
+- Go to Firebase Console → Firestore Database → Rules
+- Confirm the rules show `allow read, write: if true;` for `redemptionScans`
 
-2. **Check Collection Names:**
+### 2. Check Collection Names
 
-   - Ensure your collections are named exactly: `drinksScans`, `ethpartyparticipants`, `VivaCityUsers`
+- Ensure your collections are named exactly: `redemptionScans`, `ethpartyparticipants`, `VivaCityUsers`
+- Collection names are case-sensitive
 
-3. **Verify Firebase Config:**
+### 3. Verify Firebase Config
 
-   - Check that your Firebase configuration in `.env` is correct
-   - Ensure the project ID matches
+- Check that your Firebase configuration in `.env` is correct
+- Ensure the project ID matches your Firebase project
 
-4. **Enable Debug Mode:**
-   ```env
-   NEXT_PUBLIC_DEBUG_MODE=true
-   ```
+### 4. Clear Browser Cache
 
-## 📊 Security Considerations
+- Hard refresh the page (Ctrl+F5 or Cmd+Shift+R)
+- Try in an incognito/private window
 
-### What These Rules Allow:
+### 5. Enable Debug Mode
 
-- ✅ Read operations on all collections (with limits)
-- ✅ Create new drink scan records
+```env
+NEXT_PUBLIC_DEBUG_MODE=true
+```
+
+### 6. Check Firebase Project Settings
+
+- Ensure Firestore Database is enabled
+- Verify you're in the correct Firebase project
+
+## 📊 What These Rules Allow
+
+### Development Rules (First Set):
+
+- ✅ Read operations on all collections (no limits)
+- ✅ Create new redemption scan records
 - ✅ Update existing records
+- ✅ Delete operations (use with caution)
 - ✅ No authentication required
 - ✅ No email verification required
 
-### What These Rules Don't Allow:
+### Production Rules (Second Set):
 
+- ✅ Read operations on all collections (no limits)
+- ✅ Create new redemption scan records
+- ✅ Update existing records
 - ❌ Delete operations (data protection)
-- ❌ Massive data downloads (query limits enforced)
-- ❌ No rate limiting
-- ❌ No user validation
-- ❌ No data validation
-- ❌ No access control
+- ✅ No authentication required
+- ✅ No query limits enforced
 
-## 📏 Query Limits Explained
+## 🚀 Quick Fix Commands
 
-### Collection Limits:
+If you want to quickly test if this fixes the issue:
 
-- **`drinksScans`**: Maximum 100 records per query
-- **`ethpartyparticipants`**: Maximum 50 records per query
-- **`VivaCityUsers`**: Maximum 50 records per query
+1. **Apply the development rules** (first set above)
+2. **Wait 1 minute** for propagation
+3. **Try scanning a QR code**
+4. **Check console logs** for Firebase operations
 
-### How to Handle Limits in Your App:
+## 📝 Collection Usage in Your App
 
-#### For Recent Scans (POS Page):
+Your app uses these collections:
 
-```javascript
-// This will work - limits to 10 records
-const recentScans = await getDocs(
-  query(collection(db, "drinksScans"), limit(10))
-);
+- **`redemptionScans`**: Stores guest redemption records (main collection causing the error)
+- **`ethpartyparticipants`**: Stores event participant data
+- **`VivaCityUsers`**: Stores user data (if used)
 
-// This will work - limits to 100 records (max allowed)
-const allScans = await getDocs(
-  query(collection(db, "drinksScans"), limit(100))
-);
+The error you're seeing is specifically related to the `redemptionScans` collection, which these rules will fix.
 
-// This will FAIL - exceeds limit
-const tooManyScans = await getDocs(
-  query(collection(db, "drinksScans"), limit(200)) // ❌ Error
-);
-```
+## 🔄 Next Steps
 
-#### For Pagination:
-
-```javascript
-// Use pagination to get more data
-const firstPage = await getDocs(
-  query(collection(db, "drinksScans"), limit(100))
-);
-
-const lastDoc = firstPage.docs[firstPage.docs.length - 1];
-const nextPage = await getDocs(
-  query(collection(db, "drinksScans"), startAfter(lastDoc), limit(100))
-);
-```
-
-### Benefits of Query Limits:
-
-- 🛡️ **Prevents Data Theft**: Can't download entire database
-- ⚡ **Better Performance**: Faster queries and responses
-- 💰 **Cost Control**: Reduces Firebase read costs
-- 🔒 **Security**: Limits potential abuse
-
-### For Production Use:
-
-Consider implementing:
-
-- Rate limiting rules
-- Data validation rules
-- User authentication
-- IP-based restrictions
-- Time-based access controls
-
-## 🔄 Reverting to Secure Rules
-
-When you're ready to make the system more secure:
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Drinks scans collection - Require authentication
-    match /drinksScans/{document} {
-      allow read, write: if request.auth != null;
-    }
-
-    // Event participants collection - Read for all, write for authenticated
-    match /ethpartyparticipants/{document} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-
-    // VivaCity users collection - Require authentication
-    match /VivaCityUsers/{document} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
-```
+1. **Apply the development rules** first to get your app working
+2. **Test thoroughly** to ensure all functionality works
+3. **Consider switching to production rules** when ready for deployment
+4. **Monitor Firebase usage** to ensure you stay within limits
