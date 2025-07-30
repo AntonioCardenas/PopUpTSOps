@@ -1,276 +1,384 @@
-# VivaApp
+# PopUpTSOps - Drinks QR Code System
 
-A modern food pass application with QR code scanning, admin dashboard, and attendee management.
+A comprehensive QR code scanning system for drink redemptions at events, with integration for both custom QR codes and Lu.ma check-in URLs.
 
-## Features
+## 🚀 Quick Start
 
-- 🍕 **Food Item Management**: Browse and search food items
-- 📱 **QR Code Scanning**: Scan QR codes to redeem offers
-- 👥 **Attendee Management**: Add and manage attendees
-- 🔐 **Admin Dashboard**: Secure admin interface with role-based access
-- 📊 **Real-time Updates**: Live data synchronization with Firebase
-- 🎫 **QR Code Generation**: Generate QR codes for events and offers
-- 📈 **Analytics Dashboard**: Track redemptions and usage statistics
-- 🔄 **CSV Import/Export**: Bulk import attendees and export data
-- 🌙 **Dark Mode Support**: Toggle between light and dark themes
-- 📱 **Mobile Responsive**: Optimized for mobile and desktop use
+### 1. Environment Setup
 
-## Tech Stack
+Create your environment file based on the example:
 
-- **Frontend**: Next.js 15, React 19, TypeScript
-- **Styling**: Tailwind CSS, shadcn/ui components
-- **Backend**: Firebase (Firestore, Authentication)
-- **QR Scanning**: @yudiel/react-qr-scanner
-- **QR Generation**: qrcode library
-- **Package Manager**: pnpm
-- **Deployment**: Vercel (recommended)
+```bash
+cp .env.example .env
+```
 
-## Getting Started
+Edit `.env` with your configuration:
 
-### Prerequisites
+```env
+# Firebase Configuration
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 
-- Node.js 18+
-- pnpm (recommended) or npm
-- Firebase project
+# Event Configuration
+NEXT_PUBLIC_EVENT_ID=evt-pEL2QyThOoezJWn  # Optional - leave empty for dynamic events
+NEXT_PUBLIC_EVENT_NAME="Your Event Name"
+NEXT_PUBLIC_MAX_DRINKS_PER_GUEST=3
 
-### Installation
+# Security Settings
+NEXT_PUBLIC_ENABLE_LUMA_INTEGRATION=true
+NEXT_PUBLIC_REQUIRE_LUMA_VERIFICATION=false
+```
 
-1. **Clone the repository**:
+### 2. Install Dependencies
 
-   ```bash
-   git clone <repository-url>
-   cd VivaApp
-   ```
+```bash
+npm install
+# or
+pnpm install
+```
 
-2. **Install dependencies**:
+### 3. Run Development Server
 
-   ```bash
-   pnpm install
-   ```
+```bash
+npm run dev
+# or
+pnpm dev
+```
 
-3. **Set up environment variables**:
+Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-   ```bash
-   cp .env.example .env
-   ```
+## 🔒 Security & Configuration
 
-   Edit `.env` and add your Firebase configuration:
+### Event ID Security
+
+The system can operate in two modes for event ID validation:
+
+#### **Secure Mode (Recommended):**
+
+Set `NEXT_PUBLIC_EVENT_ID` in your `.env` file to validate Lu.ma URLs against a specific event. This prevents unauthorized access from other events.
+
+#### **Dynamic Mode (Flexible):**
+
+Leave `NEXT_PUBLIC_EVENT_ID` empty to accept any Lu.ma event URL. The system will use the event ID from the scanned URL.
+
+**To change the event ID:**
+
+1. **Update .env file:**
 
    ```env
-   NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key-here
-   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
-   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789
-   NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abcdef123456
-   NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
+   NEXT_PUBLIC_EVENT_ID=evt-your-new-event-id  # For secure mode
+   # NEXT_PUBLIC_EVENT_ID=  # Leave empty for dynamic mode
    ```
 
-4. **Run the development server**:
+2. **Update Firebase Security Rules** (see Firebase Security section below)
 
-   ```bash
-   pnpm dev
+3. **Update Luma Data** (if using local luma.json):
+   ```json
+   {
+     "entries": [
+       {
+         "api_id": "evt-your-new-event-id",
+         "guest": {
+           "email": "guest@example.com",
+           "name": "Guest Name",
+           "approval_status": "approved"
+         }
+       }
+     ]
+   }
    ```
 
-5. **Open your browser**:
-   Navigate to [http://localhost:3000](http://localhost:3000)
+### Firebase Security Rules
 
-## Firebase Setup
+Configure your Firestore security rules to restrict access:
 
-### 1. Create a Firebase Project
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Drinks scans collection
+    match /drinksScans/{document} {
+      allow read, write: if request.auth != null &&
+        (request.auth.token.email_verified == true ||
+         request.auth.token.role == 'admin');
+    }
 
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Create a new project
-3. Enable Authentication with Google provider
-4. Create a Firestore database
+    // Event participants collection
+    match /ethpartyparticipants/{document} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+        request.auth.token.role == 'admin';
+    }
 
-### 2. Get Firebase Configuration
+    // VivaCity users collection
+    match /ethpartyparticipants/{document} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
 
-1. Go to Project Settings
-2. Scroll down to "Your apps"
-3. Click the web icon (</>)
-4. Register your app and copy the config
+## 🏗️ System Architecture
 
-### 3. Set Up Firestore Collections
+### Data Flow
 
-The app uses the following collections:
+```mermaid
+graph TD
+    A[QR Code Scan] --> B{URL Type?}
+    B -->|Lu.ma URL| C[Decode URL]
+    B -->|Custom QR| D[Parse JSON]
+    C --> E[Extract Event ID & PK]
+    D --> F[Validate Data]
+    E --> G[Check Event ID]
+    F --> G
+    G --> H[Check Drink History]
+    H --> I[Save to Firebase]
+    I --> J[Update UI]
+```
 
-- `admins`: Admin user records
-- `attendees`: Attendee information
-- `redemptions`: QR code redemption records
-- `foodItems`: Food item catalog
-- `events`: Event information
+### Firebase Collections
 
-### 4. Set Up Admin Users
+#### 1. `drinksScans` Collection
 
-See [ADMIN_SETUP.md](./ADMIN_SETUP.md) for detailed instructions on setting up admin users.
+Stores all drink redemption records:
 
-## Deployment
+```typescript
+interface ScanRecord {
+  id: string;
+  email: string;
+  attendeeName: string;
+  scannedAt: string;
+  lumaVerified: boolean;
+  drinksRedeemed: boolean;
+  scanCount: number;
+  remainingDrinks: number;
+  qrData: {
+    email: string;
+    attendeeId: string;
+    drinksAllowed: number;
+    generatedAt: string;
+    lumaUrl?: string;
+    eventId?: string;
+    publicKey?: string;
+  };
+}
+```
 
-### Vercel (Recommended)
+#### 2. `ethpartyparticipants` Collection
 
-1. **Connect your repository**:
+Stores event participant data:
 
-   - Push your code to GitHub
-   - Connect your repository to Vercel
+```typescript
+interface Participant {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+  drinksAllowed: number;
+  validFrom: string;
+  validTo: string;
+}
+```
 
-2. **Configure environment variables**:
+#### 3. `ethpartyparticipants` Collection
 
-   - Add all Firebase environment variables in Vercel dashboard
-   - Set `NODE_ENV=production`
+Stores user data for special features:
 
-3. **Deploy**:
-   ```bash
-   vercel --prod
-   ```
+```typescript
+interface VivaCityUser {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+  createdAt: string;
+}
+```
 
-### Other Platforms
+## 🔗 Lu.ma Integration
 
-The app can be deployed to any platform that supports Next.js:
+### How Lu.ma URLs Work
 
-- **Netlify**: Use the Next.js build command
-- **Railway**: Connect your GitHub repository
-- **DigitalOcean App Platform**: Deploy with automatic builds
-
-## Project Structure
+The system processes Lu.ma check-in URLs in the format:
 
 ```
-VivaApp/
+https://lu.ma/check-in/evt-pEL2QyThOoezJWn?pk=g-m8Y112wpmIWvmpW
+```
+
+**URL Components:**
+
+- `evt-pEL2QyThOoezJWn`: Event ID (validated against .env)
+- `g-m8Y112wpmIWvmpW`: Public key for check-in access
+
+### URL Processing Steps
+
+1. **Detection**: System identifies Lu.ma URLs by checking for `https://lu.ma/check-in/`
+
+2. **Decoding**: URL-encoded characters are decoded:
+
+   ```javascript
+   const decodedUrl = decodeURIComponent(scannedText);
+   // %3F becomes ?, %2F becomes /, etc.
+   ```
+
+3. **Extraction**: Event ID and public key are extracted:
+
+   ```javascript
+   const urlMatch = decodedUrl.match(
+     /https:\/\/lu\.ma\/check-in\/([^?]+)\?pk=([^&]+)/
+   );
+   const [, eventId, publicKey] = urlMatch;
+   ```
+
+4. **Validation**: Event ID is checked against `NEXT_PUBLIC_EVENT_ID`
+
+5. **Processing**: Creates drink redemption record with:
+   - Email: `luma-{eventId}@checkin.com`
+   - Drinks Allocated: 3 (configurable)
+   - Luma Verified: true
+
+### Security Considerations
+
+- **Event ID Validation**: Only accepts URLs for the configured event
+- **URL Encoding**: Handles both encoded and non-encoded URLs
+- **Public Key Storage**: Public keys are stored for audit purposes
+- **Rate Limiting**: 3 drinks per event ID (configurable)
+
+## 📊 Database Schema
+
+### Drink Redemption Record Example
+
+```json
+{
+  "id": "auto-generated",
+  "email": "luma-evt-pEL2QyThOoezJWn@checkin.com",
+  "attendeeName": "Lu.ma Guest (evt-pEL2QyThOoezJWn)",
+  "scannedAt": "2024-01-15T10:30:00.000Z",
+  "lumaVerified": true,
+  "drinksRedeemed": true,
+  "scanCount": 1,
+  "remainingDrinks": 2,
+  "qrData": {
+    "email": "luma-evt-pEL2QyThOoezJWn@checkin.com",
+    "attendeeId": "evt-pEL2QyThOoezJWn",
+    "drinksAllowed": 3,
+    "generatedAt": "2024-01-15T10:30:00.000Z",
+    "lumaUrl": "https://lu.ma/check-in/evt-pEL2QyThOoezJWn?pk=g-m8Y112wpmIWvmpW",
+    "eventId": "evt-pEL2QyThOoezJWn",
+    "publicKey": "g-m8Y112wpmIWvmpW"
+  }
+}
+```
+
+## 🛠️ Configuration Options
+
+### Environment Variables
+
+| Variable                                | Description                             | Default | Required |
+| --------------------------------------- | --------------------------------------- | ------- | -------- |
+| `NEXT_PUBLIC_EVENT_ID`                  | Lu.ma event ID for validation           | -       | Yes      |
+| `NEXT_PUBLIC_EVENT_NAME`                | Display name for the event              | "Event" | No       |
+| `NEXT_PUBLIC_MAX_DRINKS_PER_GUEST`      | Maximum drinks per guest                | 3       | No       |
+| `NEXT_PUBLIC_ENABLE_LUMA_INTEGRATION`   | Enable Lu.ma URL processing             | true    | No       |
+| `NEXT_PUBLIC_REQUIRE_LUMA_VERIFICATION` | Require Luma verification for all scans | false   | No       |
+
+### Firebase Configuration
+
+Ensure your Firebase project has:
+
+- **Firestore Database** enabled
+- **Authentication** configured (optional but recommended)
+- **Security Rules** properly set
+- **Collections** created: `drinksScans`, `ethpartyparticipants`, `ethpartyparticipants`
+
+## 🔧 Development
+
+### Project Structure
+
+```
+PopUpTSOps/
 ├── app/                    # Next.js app directory
-│   ├── admin/             # Admin dashboard pages
-│   │   ├── manage-admins/ # Admin management
-│   │   └── residents/     # Resident management
 │   ├── api/               # API routes
-│   │   ├── berlinhouse/   # Berlin House API
-│   │   └── luma/          # Lu.ma API integration
-│   ├── pos/               # Point of Sale interface
+│   ├── pos/               # POS scanning page
 │   ├── redeem/            # QR redemption page
-│   ├── scan/              # QR scanning page
-│   └── page.tsx           # Main app page
+│   └── page.tsx           # Main landing page
 ├── components/            # React components
-│   ├── ui/               # shadcn/ui components
-│   ├── admin-guard.tsx   # Admin route protection
-│   ├── qr-scanner.tsx    # QR code scanner
-│   ├── qr-generator.tsx  # QR code generator
-│   └── ...               # Other custom components
+│   ├── qr-scanner.tsx     # QR code scanner
+│   ├── qr-redemption.tsx  # QR code generation
+│   └── ui/               # UI components
 ├── lib/                  # Utility libraries
 │   ├── firebase.ts       # Firebase configuration
-│   ├── admin.ts          # Admin utilities
-│   └── accesspass.ts     # Access pass utilities
-├── hooks/                # Custom React hooks
-├── scripts/              # Utility scripts
-└── public/               # Static assets
+│   ├── luma-utils.ts     # Luma data utilities
+│   └── utils.ts          # General utilities
+├── public/               # Static assets
+│   ├── luma.json         # Local Luma data (optional)
+│   └── beep.mp3          # Success sound
+└── types/                # TypeScript type definitions
 ```
 
-## Available Scripts
+### Key Features
 
-- `pnpm dev` - Start development server
-- `pnpm build` - Build for production
-- `pnpm start` - Start production server
-- `pnpm lint` - Run ESLint
-- `node scripts/add-admin.js` - Add admin users (see ADMIN_SETUP.md)
-- `node scripts/add-meal-entitlements.js` - Add Drinksentitlements
-- `node scripts/create-admin.js` - Create new admin user
+- **QR Code Scanning**: Camera-based QR code scanning
+- **Lu.ma Integration**: Direct processing of Lu.ma check-in URLs
+- **Drink Tracking**: 3-drink limit per guest with Firebase storage
+- **Real-time Statistics**: Live drink redemption statistics
+- **Audit Trail**: Complete history of all redemptions
+- **Security**: Event ID validation and Firebase security rules
 
-## API Routes
-
-### `/api/berlinhouse`
-
-- **GET**: Fetch Berlin House data
-- **POST**: Update Berlin House information
-
-### `/api/luma`
-
-- **GET**: Fetch Lu.ma event data
-- **POST**: Process Lu.ma check-ins
-
-## Environment Variables
-
-| Variable                                   | Description                  | Required |
-| ------------------------------------------ | ---------------------------- | -------- |
-| `NEXT_PUBLIC_FIREBASE_API_KEY`             | Firebase API key             | ✅       |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`         | Firebase auth domain         | ✅       |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID`          | Firebase project ID          | ✅       |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`      | Firebase storage bucket      | ✅       |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID | ✅       |
-| `NEXT_PUBLIC_FIREBASE_APP_ID`              | Firebase app ID              | ✅       |
-| `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID`      | Firebase measurement ID      | ✅       |
-
-## Troubleshooting
+## 🚨 Troubleshooting
 
 ### Common Issues
 
-1. **QR Scanner not working on mobile**:
+1. **"Invalid Lu.ma URL" Error**
 
-   - Ensure HTTPS is enabled (required for camera access)
-   - Check browser permissions for camera access
-   - Try refreshing the page
+   - Check that the event ID in `.env` matches the URL
+   - Ensure URL encoding is handled (system does this automatically)
 
-2. **Firebase connection issues**:
+2. **Firebase Connection Issues**
 
-   - Verify all environment variables are set correctly
-   - Check Firebase project settings
-   - Ensure Firestore rules allow read/write access
+   - Verify Firebase configuration in `.env`
+   - Check Firebase security rules
+   - Ensure collections exist in Firestore
 
-3. **Admin access denied**:
+3. **Camera Access Denied**
 
-   - Verify admin user is properly set up in Firebase
-   - Check admin email is correct in the database
-   - Run the admin setup script if needed
+   - Check browser permissions
+   - Ensure HTTPS is used (required for camera access)
 
-4. **Build errors**:
-   - Clear node_modules and reinstall: `rm -rf node_modules pnpm-lock.yaml && pnpm install`
-   - Check TypeScript errors: `pnpm lint`
-   - Verify all dependencies are compatible
+4. **QR Code Not Scanning**
+   - Verify QR code format is valid JSON
+   - Check that all required fields are present
+   - Ensure QR code is not damaged or poorly printed
 
-### Performance Optimization
+### Debug Mode
 
-- Enable Firebase offline persistence for better performance
-- Use image optimization for QR codes
-- Implement proper caching strategies
-- Monitor bundle size with `pnpm build --analyze`
+Enable debug logging by adding to `.env`:
 
-## Contributing
+```env
+NEXT_PUBLIC_DEBUG_MODE=true
+```
+
+This will show detailed console logs for URL processing and Firebase operations.
+
+## 📝 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+2. Create a feature branch
 3. Make your changes
 4. Add tests if applicable
-5. Commit your changes (`git commit -m 'Add some amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+5. Submit a pull request
 
-### Development Guidelines
-
-- Follow TypeScript best practices
-- Use conventional commit messages
-- Add proper error handling
-- Include loading states for better UX
-- Test on both mobile and desktop
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
+## 📞 Support
 
 For support and questions:
 
-- Create an issue in the GitHub repository
-- Check the [ADMIN_SETUP.md](./ADMIN_SETUP.md) for admin-related questions
-- Review the troubleshooting section above
-
-## Changelog
-
-### v1.0.0
-
-- Initial release with QR scanning and admin dashboard
-- Firebase integration
-- Basic attendee management
-
-### v1.1.0
-
-- Added Lu.ma integration
-- Enhanced admin interface
-- Improved mobile responsiveness
-- Added dark mode support
+- Create an issue in the repository
+- Check the troubleshooting section
+- Review Firebase documentation for configuration issues

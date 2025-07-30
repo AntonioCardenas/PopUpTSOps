@@ -181,16 +181,27 @@ export default function POSPage() {
                     const [, eventId, publicKey] = urlMatch
                     console.log('Lu.ma URL detected:', { eventId, publicKey })
 
+                    // Check if we have a configured event ID, otherwise use the one from URL
+                    const configuredEventId = process.env.NEXT_PUBLIC_EVENT_ID
+                    const finalEventId = configuredEventId || eventId
+
+                    console.log('Event ID validation:', {
+                        configuredEventId,
+                        urlEventId: eventId,
+                        finalEventId,
+                        usingConfigured: !!configuredEventId
+                    })
+
                     // Create a data object from Lu.ma URL
                     const data: ScannedData = {
-                        email: `luma-${eventId}@checkin.com`, // Placeholder email
+                        email: `luma-${eventId}@checkin.com`, // Use original eventId for email
                         attendeeId: eventId,
                         validFrom: new Date().toISOString(),
                         validTo: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Valid for 24 hours
                         drinksAllowed: 3, // Default 3 drinks for Lu.ma check-ins
                         generatedAt: new Date().toISOString(),
                         lumaUrl: scannedText,
-                        eventId,
+                        eventId: finalEventId, // Use final event ID for validation
                         publicKey
                     }
 
