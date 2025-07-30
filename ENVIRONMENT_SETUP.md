@@ -22,6 +22,7 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789
 NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abcdef123456
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
 ```
 
 ### 3. Lu.ma API Configuration
@@ -57,7 +58,7 @@ The system uses the Lu.ma API endpoint: `https://public-api.luma.com/v1/event/ge
 
 ```env
 # Event Configuration (Optional - for security)
-NEXT_PUBLIC_EVENT_ID=evt-pEL2QyThOoezJWn
+NEXT_PUBLIC_EVENT_ID=evt-xxxx
 ```
 
 **Important:** The `NEXT_PUBLIC_EVENT_ID` is optional. If set, it validates Lu.ma URLs against this specific event ID for security. If left empty, the system accepts any Lu.ma event URL.
@@ -83,7 +84,7 @@ The system can validate Lu.ma URLs in two ways:
 Set a specific event ID in your environment:
 
 ```env
-NEXT_PUBLIC_EVENT_ID=evt-pEL2QyThOoezJWn
+NEXT_PUBLIC_EVENT_ID=evt-xxxxx
 ```
 
 **Example Lu.ma URL:**
@@ -301,37 +302,6 @@ service cloud.firestore {
 - **Public Key Storage**: Stores public keys for audit purposes
 - **Rate Limiting**: 3 drinks per event ID (configurable)
 - **Audit Trail**: Complete history of all redemptions
-
-## 🛠️ Optional Configuration
-
-### Debug Mode
-
-Enable detailed logging for troubleshooting:
-
-```env
-NEXT_PUBLIC_DEBUG_MODE=true
-```
-
-This will show:
-
-- URL processing steps
-- Firebase operations
-- Error details
-- Data validation results
-
-**Note:** This variable is not yet implemented in the current codebase but is planned for future development.
-
-### Custom Collection Names
-
-Override default collection names:
-
-```env
-NEXT_PUBLIC_DRINKS_SCANS_COLLECTION=drinksScans
-NEXT_PUBLIC_PARTICIPANTS_COLLECTION=ethpartyparticipants
-NEXT_PUBLIC_USERS_COLLECTION=ethpartyparticipants
-```
-
-**Note:** These variables are not yet implemented in the current codebase but are planned for future development.
 
 ## 🚨 Troubleshooting
 

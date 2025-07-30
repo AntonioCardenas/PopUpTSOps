@@ -47,7 +47,6 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log("API: Lu.ma API response data:", data);
 
     // Return the guest data directly
     return NextResponse.json(data);

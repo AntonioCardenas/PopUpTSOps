@@ -47,12 +47,14 @@ The POS (Point of Sale) scanning system allows staff to scan Lu.ma check-in URLs
 
 ### 6. User Interface
 
-- **Clean Design**: Modern, responsive interface
-- **Redemption Type Selector**: Choose between drinks and meals
-- **Status Indicators**: Visual feedback for redemption results
+- **Modern Design**: Neo-brutalism style with clean, bold aesthetics
+- **Mobile-Friendly**: Responsive design optimized for mobile devices
+- **Redemption Type Selector**: Choose between drinks and meals with visual feedback
+- **Status Indicators**: Visual feedback for redemption results with icons
 - **Detailed Information**: Shows guest details and Lu.ma event data
 - **Redemption History**: Recent redemptions with timestamps and remaining counts
-- **Progress Indicators**: Visual dots showing redemption usage
+- **Privacy Protection**: Obfuscated names and emails for privacy
+- **Color Scheme**: Purple (#D0C4fB), Cyan (#A4FCF6), Blue (#81a8f8) palette
 
 ## Technical Implementation
 
@@ -115,20 +117,27 @@ The POS (Point of Sale) scanning system allows staff to scan Lu.ma check-in URLs
 - **API Errors**: Graceful handling of Lu.ma API connection problems
 - **Network Issues**: Graceful handling of Firebase connection problems
 - **Event Mismatch**: Clear message when URL is for a different event
-- **Camera Access**: Clear instructions for camera permissions
-- **Drink Limits**: Informative messages when limit is reached
+- **Camera Access**: Clear instructions for camera permissions with proper device management
+- **Device Compatibility**: Proper camera instance management to prevent device issues
+- **Permission Handling**: Automatic camera permission requests with fallback options
+- **Drink/Meal Limits**: Informative messages when limits are reached
 
 ## Security Features
 
 - **Email Validation**: Ensures valid email format
-- **Drink Tracking**: Prevents abuse through drink counting
-- **Data Verification**: Cross-references with Luma event data
-- **Audit Trail**: Complete logging of all drink redemptions
+- **Drink/Meal Tracking**: Prevents abuse through redemption counting
+- **Data Verification**: Cross-references with Lu.ma event data
+- **Audit Trail**: Complete logging of all redemptions
+- **Privacy Protection**: Obfuscated names and emails in UI
+- **Proxy Key Tracking**: Uses Lu.ma proxy keys as unique identifiers
+- **Event Validation**: Prevents cross-event redemptions
 
-## Drink Tracking Logic
+## Redemption Tracking Logic
 
-- **Initial Allocation**: 3 drinks per registered guest
-- **Redemption Tracking**: Each scan reduces remaining count
-- **Limit Enforcement**: No redemptions after 3 drinks used
-- **Clear Display**: Shows remaining drinks prominently
+- **Initial Allocation**: Configurable drinks and meals per registered guest
+- **Redemption Tracking**: Each scan reduces remaining count for selected type
+- **Limit Enforcement**: No redemptions after limits are reached
+- **Clear Display**: Shows remaining drinks/meals prominently
 - **History Tracking**: Complete record of all redemptions
+- **Privacy Protection**: Obfuscated personal information in UI
+- **Device Management**: Proper camera instance handling to prevent device issues

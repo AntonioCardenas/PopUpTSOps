@@ -14,15 +14,48 @@ interface QRScannerProps {
 export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isCameraActive, setIsCameraActive] = useState(false);
   const scannerRef = useRef<HTMLDivElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const handleDecode = useCallback(
     (result: string) => {
+      // Stop camera before processing result
+      stopCamera();
       onScanSuccess(result);
       onClose();
     },
     [onScanSuccess, onClose]
   );
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setIsCameraActive(false);
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    try {
+      stopCamera(); // Stop any existing camera first
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+
+      streamRef.current = stream;
+      setIsCameraActive(true);
+    } catch (error) {
+      console.error("Error starting camera:", error);
+      setHasPermission(false);
+      setIsCameraActive(false);
+    }
+  }, [stopCamera]);
 
   const handleError = (error: unknown) => {
     console.error("QR Code scanning failed:", error);
@@ -36,14 +69,35 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
 
   const requestCameraPermission = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach((track) => track.stop()); // Stop the stream immediately
+      // Stop any existing camera stream first
+      stopCamera();
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+
+      // Store the stream reference
+      streamRef.current = stream;
+      setIsCameraActive(true);
       setHasPermission(true);
       setErrorMessage(null);
       localStorage.setItem("cameraPermission", "granted");
+
+      // Stop the stream after a brief moment to test permission
+      setTimeout(() => {
+        if (streamRef.current === stream) {
+          stopCamera();
+        }
+      }, 100);
+
     } catch (error) {
       console.error("Error accessing camera:", error);
       setHasPermission(false);
+      setIsCameraActive(false);
       localStorage.setItem("cameraPermission", "denied");
       if (error instanceof DOMException) {
         setErrorMessage(
@@ -55,7 +109,7 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
       toast({
         title: "Camera Access Denied",
         description: "Please allow camera access to scan QR codes.",
-        variant: "destructive",
+        variant: "warning",
       });
     }
   };
@@ -66,6 +120,7 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
         scannerRef.current &&
         !scannerRef.current.contains(event.target as Node)
       ) {
+        stopCamera();
         onClose();
       }
     };
@@ -74,7 +129,7 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [onClose]);
+  }, [onClose, stopCamera]);
 
   useEffect(() => {
     const storedPermission = localStorage.getItem("cameraPermission");
@@ -85,59 +140,100 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
     }
   }, []);
 
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
+
+  // Auto-start camera when permission is granted
+  useEffect(() => {
+    if (hasPermission === true && !isCameraActive) {
+      startCamera();
+    }
+  }, [hasPermission, isCameraActive, startCamera]);
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div
         ref={scannerRef}
-        className="relative w-full max-w-lg rounded-lg bg-background p-6 shadow-lg"
+        className="w-full max-w-sm sm:w-96 px-4 sm:px-8 py-4 bg-white border-4 border-black shadow-[8px_8px_0px_rgba(0,0,0,1)] grid place-content-center"
       >
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute right-2 top-2"
-          onClick={onClose}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-        <h2 className="mb-4 text-lg font-semibold">Scan QR Code</h2>
-
-        {hasPermission === null ? (
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <Camera className="h-12 w-12 text-muted-foreground" />
-            <p className="text-center text-sm text-muted-foreground">
-              Camera access is required to scan QR codes
-            </p>
-            <Button onClick={requestCameraPermission}>
-              Allow Camera Access
-            </Button>
+        <div>
+          <div className="flex justify-between items-center mb-3 sm:mb-4">
+            <h2 className="text-xl sm:text-2xl font-bold">Scan QR Code</h2>
+            <button
+              onClick={onClose}
+              className="text-base hover:text-gray-600 p-1"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
-        ) : hasPermission === false ? (
-          <div className="text-center">
-            <p className="text-sm text-destructive mb-2">
-              Camera access was denied. Please grant permission and try again.
-            </p>
-            {errorMessage && (
-              <p className="text-xs text-muted-foreground">
-                Error details: {errorMessage}
+
+          {hasPermission === null ? (
+            <div className="flex flex-col items-center justify-center space-y-3 sm:space-y-4">
+              <Camera className="h-10 w-10 sm:h-12 sm:w-12 text-gray-600" />
+              <p className="text-center text-xs sm:text-sm text-gray-600">
+                Camera access is required to scan QR codes
               </p>
-            )}
-            <Button onClick={requestCameraPermission} className="mt-4">
-              Retry Camera Access
-            </Button>
-          </div>
-        ) : (
-          <div className="aspect-square w-full overflow-hidden rounded-lg">
-            <Scanner
-              onScan={(result) => handleDecode(result[0].rawValue)}
-              onError={handleError}
-              constraints={{ facingMode: "environment" }}
-            />
-          </div>
-        )}
+              <button
+                onClick={requestCameraPermission}
+                className="h-12 sm:h-12 border-black border-2 p-2.5 bg-[#A4FCF6] hover:bg-[#81a8f8] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:bg-[#D0C4fB] rounded-full font-medium text-sm sm:text-base"
+              >
+                Allow Camera Access
+              </button>
+            </div>
+          ) : hasPermission === false ? (
+            <div className="text-center">
+              <p className="text-xs sm:text-sm text-red-600 mb-2">
+                Camera access was denied. Please grant permission and try again.
+              </p>
+              {errorMessage && (
+                <p className="text-xs text-gray-500">
+                  Error details: {errorMessage}
+                </p>
+              )}
+              <button
+                onClick={requestCameraPermission}
+                className="mt-4 h-12 border-black border-2 p-2.5 bg-[#A4FCF6] hover:bg-[#81a8f8] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:bg-[#D0C4fB] rounded-full font-medium text-sm sm:text-base"
+              >
+                Retry Camera Access
+              </button>
+            </div>
+          ) : (
+            <div className="aspect-square w-full overflow-hidden rounded-lg border-2 border-black">
+              {isCameraActive ? (
+                <Scanner
+                  onScan={(result) => handleDecode(result[0].rawValue)}
+                  onError={handleError}
+                  constraints={{
+                    facingMode: "environment",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                  }}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full space-y-3">
+                  <Camera className="h-10 w-10 sm:h-12 sm:w-12 text-gray-600" />
+                  <p className="text-center text-xs sm:text-sm text-gray-600">
+                    Starting camera...
+                  </p>
+                  <button
+                    onClick={startCamera}
+                    className="h-12 border-black border-2 p-2.5 bg-[#A4FCF6] hover:bg-[#81a8f8] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:bg-[#D0C4fB] rounded-full font-medium text-sm sm:text-base"
+                  >
+                    Start Camera
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
-        {errorMessage && hasPermission && (
-          <p className="mt-2 text-xs text-destructive">{errorMessage}</p>
-        )}
+          {errorMessage && hasPermission && (
+            <p className="mt-2 text-xs text-red-600">{errorMessage}</p>
+          )}
+        </div>
       </div>
     </div>
   );

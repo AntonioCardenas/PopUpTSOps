@@ -2,7 +2,7 @@
 
 ## 🔧 Required Configuration
 
-Copy this example and configure it for your project:
+Copy this example to `.env.local` and configure it for your project:
 
 ```env
 # Firebase Configuration (Required)
@@ -13,6 +13,7 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789
 NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abcdef123456
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
 
 # Lu.ma API Configuration (Required)
 # Get your API key from your Lu.ma dashboard
@@ -25,6 +26,7 @@ NEXT_PUBLIC_EVENT_ID=evt-CVo50APyX8DNYes
 # Redemption Limits (Optional)
 # Set the maximum number of drinks and meals each guest can redeem
 # Default: 3 drinks, 1 meal
+# Count starts from 1, 0 means no remaining redemptions
 NEXT_PUBLIC_MAX_DRINKS_PER_GUEST=3
 NEXT_PUBLIC_MAX_MEALS_PER_GUEST=1
 ```
@@ -36,8 +38,8 @@ NEXT_PUBLIC_MAX_MEALS_PER_GUEST=1
 - `NEXT_PUBLIC_FIREBASE_*` - All Firebase configuration variables
 - `NEXT_PUBLIC_LUMAAPIKEY` - Lu.ma API key for guest data access
 - `NEXT_PUBLIC_EVENT_ID` - Event ID for Lu.ma API queries (optional)
-- `NEXT_PUBLIC_MAX_DRINKS_PER_GUEST` - Maximum drinks per guest (default: 3)
-- `NEXT_PUBLIC_MAX_MEALS_PER_GUEST` - Maximum meals per guest (default: 1)
+- `NEXT_PUBLIC_MAX_DRINKS_PER_GUEST` - Maximum drinks per guest (default: 3, starts from 1)
+- `NEXT_PUBLIC_MAX_MEALS_PER_GUEST` - Maximum meals per guest (default: 1, starts from 1)
 
 ### 🔄 Planned for Future:
 
@@ -67,11 +69,12 @@ NEXT_PUBLIC_MAX_MEALS_PER_GUEST=1
 
 The system now supports both drinks and meals with separate tracking:
 
-- **Drinks**: Configurable limit per guest (default: 3)
-- **Meals**: Configurable limit per guest (default: 1)
-- **Counting**: Starts from 1, 0 means no remaining
+- **Drinks**: Configurable limit per guest (default: 3, starts from 1)
+- **Meals**: Configurable limit per guest (default: 1, starts from 1)
+- **Counting**: Starts from 1, 0 means no remaining redemptions
 - **Collection**: All redemptions stored in `redemptionScans` collection
 - **UI**: Toggle between drink and meal scanning modes
+- **Environment Variables**: `NEXT_PUBLIC_MAX_DRINKS_PER_GUEST` and `NEXT_PUBLIC_MAX_MEALS_PER_GUEST`
 
 ## 🔌 Lu.ma API Integration
 

@@ -52,6 +52,25 @@ export default function POSPage() {
     const DRINKS_LIMIT = parseInt(process.env.NEXT_PUBLIC_MAX_DRINKS_PER_GUEST || '3')
     const MEALS_LIMIT = parseInt(process.env.NEXT_PUBLIC_MAX_MEALS_PER_GUEST || '1')
 
+    // Helper function to obfuscate personal information
+    const obfuscateName = (fullName: string): string => {
+        const nameParts = fullName.trim().split(' ')
+        if (nameParts.length <= 1) return fullName
+        const firstName = nameParts[0]
+        const lastName = nameParts[nameParts.length - 1]
+        return `${firstName} ${lastName.charAt(0)}.`
+    }
+
+    const obfuscateEmail = (email: string): string => {
+        const [localPart, domain] = email.split('@')
+        if (!domain) return email
+
+        if (localPart.length <= 2) return email
+
+        const maskedLocal = localPart.charAt(0) + '*'.repeat(localPart.length - 2) + localPart.charAt(localPart.length - 1)
+        return `${maskedLocal}@${domain}`
+    }
+
     const findOrCreateGuestRecord = async (publicKey: string, email: string, attendeeName: string, lumaVerified: boolean, eventId?: string): Promise<ScanRecord> => {
         try {
             // Try to find existing record by publicKey
@@ -273,8 +292,8 @@ export default function POSPage() {
 
                             toast({
                                 title: `Lu.ma ${itemType} redemption successful`,
-                                description: `${lumaGuest.guest.name} - ${remainingCount} ${itemType}s remaining`,
-                                variant: "default",
+                                description: `${obfuscateName(lumaGuest.guest.name)} - ${remainingCount} ${itemType}s remaining`,
+                                variant: "success",
                             })
 
                             setIsProcessing(false)
@@ -379,115 +398,116 @@ export default function POSPage() {
     }, [])
 
     return (
-        <div className="min-h-screen bg-gray-50 p-4">
-            <div className="max-w-4xl mx-auto space-y-6">
+        <div className="min-h-screen bg-[#81a8f8] p-2 sm:p-4">
+            <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
                 {/* Header */}
-                <div className="text-center">
-                    <h1 className="text-3xl font-bold text-gray-900">POS - Redemption System</h1>
-                    <p className="text-gray-600 mt-2">Scan QR codes to redeem drinks and meals</p>
+                <div className="text-center mb-4 sm:mb-8">
+                    <p className="text-sm sm:text-base mb-2 sm:mb-4 text-slate-600"> Redemption System</p>
+                    <h1 className="text-2xl sm:text-[32px] mb-2 sm:mb-4 font-bold text-black">POS Scanner</h1>
+                    <p className="text-xs sm:text-sm mb-3 sm:mb-4 text-slate-700 max-w-2xl mx-auto">
+                        Scan Lu.ma check-in URLs to redeem drinks and meals.
+                        Real-time guest verification with secure server-side API handling.
+                        Track redemptions with configurable limits per guest.
+                    </p>
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <Card>
-                        <CardContent className="p-6">
-                            <div className="text-center">
-                                <p className="text-2xl font-bold text-blue-600">{todayScans}</p>
-                                <p className="text-sm text-gray-600">Today's Redemptions</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="p-6">
-                            <div className="text-center">
-                                <p className="text-2xl font-bold text-green-600">{scanHistory.filter(s => s.lumaVerified).length}</p>
-                                <p className="text-sm text-gray-600">Luma Verified</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="p-6">
-                            <div className="text-center">
-                                <p className="text-2xl font-bold text-orange-600">{scanHistory.filter(s => s.lastRedemptionType === 'drink').length}</p>
-                                <p className="text-sm text-gray-600">Drinks Redeemed</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="p-6">
-                            <div className="text-center">
-                                <p className="text-2xl font-bold text-purple-600">{scanHistory.filter(s => s.lastRedemptionType === 'meal').length}</p>
-                                <p className="text-sm text-gray-600">Meals Redeemed</p>
-                            </div>
-                        </CardContent>
-                    </Card>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
+                    <div className="w-full h-full border-black border-2 rounded-md hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] bg-white transition-all">
+                        <div className="p-3 sm:p-6 text-center">
+                            <p className="text-lg sm:text-2xl font-bold text-[#D0C4fB]">{todayScans}</p>
+                            <p className="text-xs sm:text-sm text-gray-600">Today's Redemptions</p>
+                        </div>
+                    </div>
+                    <div className="w-full h-full border-black border-2 rounded-md hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] bg-white transition-all">
+                        <div className="p-3 sm:p-6 text-center">
+                            <p className="text-lg sm:text-2xl font-bold text-[#A4FCF6]">{scanHistory.filter(s => s.lumaVerified).length}</p>
+                            <p className="text-xs sm:text-sm text-gray-600">Luma Verified</p>
+                        </div>
+                    </div>
+                    <div className="w-full h-full border-black border-2 rounded-md hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] bg-white transition-all">
+                        <div className="p-3 sm:p-6 text-center">
+                            <p className="text-lg sm:text-2xl font-bold text-[#81a8f8]">{scanHistory.filter(s => s.lastRedemptionType === 'drink').length}</p>
+                            <p className="text-xs sm:text-sm text-gray-600">Drinks Redeemed</p>
+                        </div>
+                    </div>
+                    <div className="w-full h-full border-black border-2 rounded-md hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] bg-white transition-all">
+                        <div className="p-3 sm:p-6 text-center">
+                            <p className="text-lg sm:text-2xl font-bold text-[#D0C4fB]">{scanHistory.filter(s => s.lastRedemptionType === 'meal').length}</p>
+                            <p className="text-xs sm:text-sm text-gray-600">Meals Redeemed</p>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Redemption Type Selector */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Redemption Type</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex gap-4">
-                            <Button
+                <div className="w-full border-black border-2 rounded-md bg-white">
+                    <div className="p-4 sm:p-6">
+                        <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 text-[#81a8f8]">Redemption Type</h3>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+                            <button
                                 onClick={() => setRedemptionType('drink')}
-                                variant={redemptionType === 'drink' ? 'default' : 'outline'}
-                                className="flex-1"
+                                className={`flex-1 h-14 sm:h-12 border-black border-2 p-2.5 rounded-md transition-all font-medium ${redemptionType === 'drink'
+                                    ? 'bg-[#A4FCF6] shadow-[4px_4px_0px_rgba(0,0,0,1)]'
+                                    : 'bg-white hover:bg-[#A4FCF6] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)]'
+                                    }`}
                             >
-                                <Coffee className="h-4 w-4 mr-2" />
-                                Drinks ({DRINKS_LIMIT} per guest)
-                            </Button>
-                            <Button
+                                <div className="flex items-center justify-center">
+                                    <Coffee className="h-4 w-4 mr-2" />
+                                    <span className="text-sm sm:text-base">Drinks ({DRINKS_LIMIT} per guest)</span>
+                                </div>
+                            </button>
+                            <button
                                 onClick={() => setRedemptionType('meal')}
-                                variant={redemptionType === 'meal' ? 'default' : 'outline'}
-                                className="flex-1"
+                                className={`flex-1 h-14 sm:h-12 border-black border-2 p-2.5 rounded-md transition-all font-medium ${redemptionType === 'meal'
+                                    ? 'bg-[#A4FCF6] shadow-[4px_4px_0px_rgba(0,0,0,1)]'
+                                    : 'bg-white hover:bg-[#A4FCF6] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)]'
+                                    }`}
                             >
-                                <Utensils className="h-4 w-4 mr-2" />
-                                Meals ({MEALS_LIMIT} per guest)
-                            </Button>
+                                <div className="flex items-center justify-center">
+                                    <Utensils className="h-4 w-4 mr-2" />
+                                    <span className="text-sm sm:text-base">Meals ({MEALS_LIMIT} per guest)</span>
+                                </div>
+                            </button>
                         </div>
-                    </CardContent>
-                </Card>
+                    </div>
+                </div>
 
                 {/* Scan Button */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
+                <div className="w-full border-black border-2 rounded-md bg-white">
+                    <div className="p-4 sm:p-6">
+                        <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 flex items-center gap-2 text-[#81a8f8]">
                             <Camera className="h-5 w-5" />
                             QR Code Scanner
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <Button
+                        </h3>
+                        <button
                             onClick={() => setIsScanning(true)}
                             disabled={isProcessing}
-                            className="w-full h-12 text-lg btn bg-slate-900 text-white"
+                            className="w-full h-14 sm:h-12 border-black border-2 p-2.5 bg-[#A4FCF6] hover:bg-[#81a8f8] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:bg-[#D0C4fB] rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
                         >
                             {isProcessing ? "Processing..." : `Start Scanning for ${redemptionType}s`}
-                        </Button>
-                    </CardContent>
-                </Card>
+                        </button>
+                    </div>
+                </div>
 
                 {/* Scan Results */}
                 {scanRecord && (
-                    <Card>
+                    <Card className="bg-white">
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
+                            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                                 {scanRecord.lumaVerified ? (
-                                    <CheckCircle className="h-5 w-5 text-green-500" />
+                                    <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
                                 ) : (
-                                    <AlertCircle className="h-5 w-5 text-yellow-500" />
+                                    <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />
                                 )}
                                 Scan Result
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <CardContent className="space-y-3 sm:space-y-4 bg-white">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                                 <div>
                                     <h3 className="font-semibold text-sm text-gray-600">Guest</h3>
-                                    <p className="text-lg font-medium">{scanRecord.attendeeName}</p>
-                                    <p className="text-sm text-gray-500">{scanRecord.email}</p>
+                                    <p className="text-lg font-medium">{obfuscateName(scanRecord.attendeeName)}</p>
+                                    <p className="text-sm text-gray-500">{obfuscateEmail(scanRecord.email)}</p>
                                 </div>
                                 <div>
                                     <h3 className="font-semibold text-sm text-gray-600">Redemption Status</h3>
@@ -527,7 +547,7 @@ export default function POSPage() {
                                     {/* Redemption Status Display */}
                                     <div className="mt-3 space-y-2">
                                         <div className={`p-3 rounded-lg border ${scanRecord.remainingDrinks > 0
-                                            ? 'bg-green-50 border-green-200 text-green-800'
+                                            ? 'bg-[#A4FCF6]/20 border-[#A4FCF6] text-[#D0C4fB]'
                                             : 'bg-red-50 border-red-200 text-red-800'
                                             }`}>
                                             <div className="flex items-center gap-2">
@@ -541,7 +561,7 @@ export default function POSPage() {
                                             </div>
                                         </div>
                                         <div className={`p-3 rounded-lg border ${scanRecord.remainingMeals > 0
-                                            ? 'bg-green-50 border-green-200 text-green-800'
+                                            ? 'bg-[#A4FCF6]/20 border-[#A4FCF6] text-[#D0C4fB]'
                                             : 'bg-red-50 border-red-200 text-red-800'
                                             }`}>
                                             <div className="flex items-center gap-2">
@@ -568,31 +588,32 @@ export default function POSPage() {
                                 )}
                             </div>
 
-                            <Button onClick={resetScan} variant="outline" className="w-full">
-                                Scan Another
-                            </Button>
+                            <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+                                <Button onClick={resetScan} variant="outline" className="flex-1 h-14 sm:h-12 text-sm sm:text-base bg-black text-white">
+                                    Scan Another
+                                </Button>
+
+                            </div>
                         </CardContent>
                     </Card>
                 )}
 
                 {/* Recent Scans */}
                 {scanHistory.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Recent Redemptions</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-2 max-h-96 overflow-y-auto">
+                    <div className="w-full border-black border-2 rounded-md bg-white">
+                        <div className="p-4 sm:p-6">
+                            <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 text-[#81a8f8]">Recent Redemptions</h3>
+                            <div className="space-y-2 max-h-64 sm:max-h-96 overflow-y-auto">
                                 {scanHistory.map((scan, index) => (
-                                    <div key={`${scan.id}-${index}`} className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div key={`${scan.id}-${index}`} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-lg gap-2 sm:gap-0">
                                         <div className="flex-1">
-                                            <p className="font-medium">{scan.attendeeName}</p>
-                                            <p className="text-sm text-gray-500">{scan.email}</p>
+                                            <p className="font-medium text-sm sm:text-base">{obfuscateName(scan.attendeeName)}</p>
+                                            <p className="text-xs sm:text-sm text-gray-500">{obfuscateEmail(scan.email)}</p>
                                             <p className="text-xs text-gray-400">
                                                 {new Date(scan.lastRedemptionAt || scan.scannedAt).toLocaleString()}
                                             </p>
                                         </div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             {scan.lumaVerified ? (
                                                 <CheckCircle className="h-4 w-4 text-green-500" />
                                             ) : (
@@ -620,8 +641,8 @@ export default function POSPage() {
                                     </div>
                                 ))}
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
                 )}
             </div>
 

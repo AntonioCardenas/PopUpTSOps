@@ -8,11 +8,11 @@ Replace your current Firestore security rules with these less restrictive ones:
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Drinks scans collection - Allow read/write but prevent deletion and massive downloads
-    match /drinksScans/{document} {
+    // Redemption scans collection - Allow read/write but prevent deletion and massive downloads
+    match /redemptionScans/{document} {
       allow read: if request.query.limit <= 100; // Limit to 100 records per query
       allow create, update: if true;
-      allow delete: if false; // Prevent deletion of drink scan records
+      allow delete: if false; // Prevent deletion of redemption scan records
     }
 
     // Event participants collection - Allow read/write but prevent deletion and massive downloads
@@ -41,8 +41,8 @@ If you want better security while still allowing the system to work:
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Drinks scans collection - Allow operations but prevent deletion and massive downloads
-    match /drinksScans/{document} {
+    // Redemption scans collection - Allow operations but prevent deletion and massive downloads
+    match /redemptionScans/{document} {
       allow read: if request.query.limit <= 100; // Limit to 100 records per query
       allow create, update: if true;
       allow delete: if false; // Prevent deletion of audit trail

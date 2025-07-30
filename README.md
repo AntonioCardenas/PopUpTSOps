@@ -1,4 +1,4 @@
-# PopUpTSOps - Lu.ma Redemption System
+# Lu.ma Redemption System
 
 A comprehensive QR code scanning system for drink and meal redemptions at events, with direct integration for Lu.ma check-in URLs and secure server-side API handling.
 
@@ -22,6 +22,7 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
 
 # Event Configuration
 NEXT_PUBLIC_EVENT_ID=evt-pEL2QyThOoezJWn  # Optional - leave empty for dynamic events
@@ -382,16 +383,6 @@ PopUpTSOps/
    - Verify QR code format is valid JSON
    - Check that all required fields are present
    - Ensure QR code is not damaged or poorly printed
-
-### Debug Mode
-
-Enable debug logging by adding to `.env`:
-
-```env
-NEXT_PUBLIC_DEBUG_MODE=true
-```
-
-This will show detailed console logs for URL processing and Firebase operations.
 
 ## 📝 License
 
