@@ -116,20 +116,27 @@ export default function POSPage() {
 
     const findOrCreateGuestRecord = async (publicKey: string, email: string, attendeeName: string, lumaVerified: boolean, eventId?: string): Promise<GuestRecordResult> => {
         try {
+            console.log('🔥 Firebase: Starting findOrCreateGuestRecord with:', { publicKey, email, attendeeName, lumaVerified, eventId })
+
             // Try to find existing record by publicKey
+            console.log('🔥 Firebase: Querying for existing record with publicKey:', publicKey)
             const guestQuery = query(
                 collection(db, "redemptionScans"),
                 where("publicKey", "==", publicKey)
             )
             const guestSnapshot = await getDocs(guestQuery)
+            console.log('🔥 Firebase: Query result - empty:', guestSnapshot.empty, 'docs count:', guestSnapshot.docs.length)
 
             if (!guestSnapshot.empty) {
                 // Return existing record
                 const existingDoc = guestSnapshot.docs[0]
-                return { record: { id: existingDoc.id, ...existingDoc.data() } as ScanRecord, isNewGuest: false }
+                const existingRecord = { id: existingDoc.id, ...existingDoc.data() } as ScanRecord
+                console.log('🔥 Firebase: Found existing record:', existingRecord)
+                return { record: existingRecord, isNewGuest: false }
             }
 
             // Create new record if not found
+            console.log('🔥 Firebase: No existing record found, creating new record...')
             const newRecord = {
                 email: email.toLowerCase(),
                 attendeeName: attendeeName,
@@ -140,24 +147,40 @@ export default function POSPage() {
                 publicKey: publicKey,
                 eventId: eventId
             }
+            console.log('🔥 Firebase: New record data to create:', newRecord)
 
+            console.log('🔥 Firebase: Adding document to collection...')
             const docRef = await addDoc(collection(db, "redemptionScans"), newRecord)
-            return { record: { id: docRef.id, ...newRecord }, isNewGuest: true }
+            console.log('🔥 Firebase: Document created successfully with ID:', docRef.id)
+
+            const createdRecord = { id: docRef.id, ...newRecord }
+            console.log('🔥 Firebase: Created record result:', createdRecord)
+            return { record: createdRecord, isNewGuest: true }
         } catch (error) {
+            console.error('🔥 Firebase: Error in findOrCreateGuestRecord:', error)
             throw error
         }
     }
 
     const updateGuestRedemption = async (recordId: string, redemptionType: 'drink' | 'meal'): Promise<ScanRecord> => {
         try {
+            console.log('🔥 Firebase: Starting updateGuestRedemption with:', { recordId, redemptionType })
+
             const recordRef = doc(db, "redemptionScans", recordId)
+            console.log('🔥 Firebase: Getting document reference for ID:', recordId)
+
+            console.log('🔥 Firebase: Fetching current document...')
             const recordDoc = await getDoc(recordRef)
+            console.log('🔥 Firebase: Document exists:', recordDoc.exists())
 
             if (!recordDoc.exists()) {
+                console.error('🔥 Firebase: Record not found for ID:', recordId)
                 throw new Error('Record not found')
             }
 
             const currentData = recordDoc.data() as ScanRecord
+            console.log('🔥 Firebase: Current record data:', currentData)
+
             const updateData: Partial<ScanRecord> = {
                 lastRedemptionType: redemptionType,
                 lastRedemptionAt: new Date().toISOString()
@@ -166,15 +189,23 @@ export default function POSPage() {
             // Decrement the appropriate counter
             if (redemptionType === 'drink') {
                 updateData.remainingDrinks = Math.max(0, currentData.remainingDrinks - 1)
+                console.log('🔥 Firebase: Updating drinks - current:', currentData.remainingDrinks, 'new:', updateData.remainingDrinks)
             } else {
                 updateData.remainingMeals = Math.max(0, currentData.remainingMeals - 1)
+                console.log('🔥 Firebase: Updating meals - current:', currentData.remainingMeals, 'new:', updateData.remainingMeals)
             }
 
+            console.log('🔥 Firebase: Update data to apply:', updateData)
+            console.log('🔥 Firebase: Updating document...')
             await updateDoc(recordRef, updateData)
+            console.log('🔥 Firebase: Document updated successfully')
 
             // Return updated record
-            return { ...currentData, ...updateData }
+            const updatedRecord = { ...currentData, ...updateData }
+            console.log('🔥 Firebase: Updated record result:', updatedRecord)
+            return updatedRecord
         } catch (error) {
+            console.error('🔥 Firebase: Error in updateGuestRedemption:', error)
             throw error
         }
     }
@@ -208,6 +239,8 @@ export default function POSPage() {
 
                     // Make API request to local /api/luma endpoint
                     try {
+                        console.log('Starting API call to /api/luma with:', { eventId, proxyKey })
+
                         const response = await fetch(`/api/luma?event_api_id=${eventId}&proxy_key=${proxyKey}`, {
                             method: 'GET',
                             headers: {
@@ -215,20 +248,41 @@ export default function POSPage() {
                             }
                         })
 
+                        console.log('API response status:', response.status, response.ok)
+
                         if (!response.ok) {
                             const errorText = await response.text()
+                            console.error('API response not ok:', errorText)
                             throw new Error(`/api/luma responded with status: ${response.status} - ${errorText}`)
                         }
 
                         const lumaData = await response.json()
 
+                        // Debug: Log the response data
+                        console.log('Lu.ma API Response:', lumaData)
+                        console.log('Response structure check:', {
+                            hasData: !!lumaData,
+                            hasGuest: !!(lumaData && lumaData.guest),
+                            guestKeys: lumaData?.guest ? Object.keys(lumaData.guest) : [],
+                            hasUserEmail: !!(lumaData && lumaData.guest && lumaData.guest.user_email),
+                            hasUserName: !!(lumaData && lumaData.guest && lumaData.guest.user_name),
+                            userEmail: lumaData?.guest?.user_email,
+                            userName: lumaData?.guest?.user_name
+                        })
+
                         // Check if we have guest data - directly use user_email from Lu.ma API
                         if (lumaData && lumaData.guest && lumaData.guest.user_email) {
+                            console.log('✅ Valid guest data found, processing...')
+
                             const guestEmail = lumaData.guest.user_email.toLowerCase().trim()
                             const guestName = (lumaData.guest.user_name || guestEmail.split('@')[0] || 'Unknown Guest').trim()
 
+                            // Debug: Log the extracted data
+                            console.log('Extracted guest data:', { guestEmail, guestName })
+
                             // Validate email format
                             if (!guestEmail || !guestEmail.includes('@')) {
+                                console.error('❌ Invalid email format:', guestEmail)
                                 toast({
                                     title: "Invalid Guest Data",
                                     description: "The guest email from Lu.ma is invalid.",
@@ -237,6 +291,8 @@ export default function POSPage() {
                                 setIsProcessing(false)
                                 return
                             }
+
+                            console.log('✅ Email validation passed, creating guest object...')
 
                             // Create LumaGuest object
                             const lumaGuest: LumaGuest = {
@@ -255,6 +311,8 @@ export default function POSPage() {
                             }
                             setLumaData(lumaGuest)
 
+                            console.log('✅ LumaGuest object created:', lumaGuest)
+
                             // Create data object using actual guest data from Lu.ma
                             const data: ScannedData = {
                                 email: guestEmail,
@@ -269,7 +327,10 @@ export default function POSPage() {
                                 publicKey: proxyKey
                             }
 
+                            console.log('✅ ScannedData object created:', data)
+
                             // Find or create guest record using actual guest data
+                            console.log('🔄 Calling findOrCreateGuestRecord...')
                             const { record: guestRecord, isNewGuest } = await findOrCreateGuestRecord(
                                 data.publicKey!,
                                 data.email,
@@ -278,8 +339,11 @@ export default function POSPage() {
                                 data.eventId
                             )
 
+                            console.log('✅ Guest record result:', { guestRecord, isNewGuest })
+
                             // Show welcome toast for new guests
                             if (isNewGuest) {
+                                console.log('🎉 New guest detected, showing welcome toast')
                                 toast({
                                     title: `👋 Welcome ${obfuscateName(lumaGuest.guest.name)}!`,
                                     description: `You have ${DRINKS_LIMIT} drinks and ${MEALS_LIMIT} meals available.`,
@@ -297,6 +361,7 @@ export default function POSPage() {
                                     availableItems.push(`${guestRecord.remainingMeals} meal${guestRecord.remainingMeals > 1 ? 's' : ''}`)
                                 }
 
+                                console.log('🍹 Available items:', availableItems)
                                 toast({
                                     title: `🍹 Available for ${obfuscateName(lumaGuest.guest.name)}`,
                                     description: `Ready to claim: ${availableItems.join(' and ')}`,
@@ -306,6 +371,7 @@ export default function POSPage() {
 
                             // Check if redemption is allowed
                             if (redemptionType === 'drink' && guestRecord.remainingDrinks <= 0) {
+                                console.log('❌ No drinks remaining')
                                 toast({
                                     title: "🍹 No drinks remaining",
                                     description: `${obfuscateName(lumaGuest.guest.name)} has already claimed all ${DRINKS_LIMIT} drinks.`,
@@ -317,6 +383,7 @@ export default function POSPage() {
                             }
 
                             if (redemptionType === 'meal' && guestRecord.remainingMeals <= 0) {
+                                console.log('❌ No meals remaining')
                                 toast({
                                     title: "🍽️ No meals remaining",
                                     description: `${obfuscateName(lumaGuest.guest.name)} has already claimed all ${MEALS_LIMIT} meals.`,
@@ -329,6 +396,7 @@ export default function POSPage() {
 
                             // Special case: if guest has no remaining drinks or meals at all
                             if (guestRecord.remainingDrinks <= 0 && guestRecord.remainingMeals <= 0) {
+                                console.log('❌ All entitlements claimed')
                                 toast({
                                     title: "🎭 All entitlements claimed",
                                     description: `${obfuscateName(lumaGuest.guest.name)} has claimed all available drinks and meals.`,
@@ -340,7 +408,10 @@ export default function POSPage() {
                             }
 
                             // Update the redemption
+                            console.log('🔄 Updating guest redemption...')
                             const updatedRecord = await updateGuestRedemption(guestRecord.id, redemptionType)
+                            console.log('✅ Redemption updated:', updatedRecord)
+
                             setScanRecord(updatedRecord)
 
                             // Update scan history
@@ -372,6 +443,7 @@ export default function POSPage() {
                             const itemType = redemptionType === 'drink' ? 'drink' : 'meal'
                             const remainingCount = redemptionType === 'drink' ? updatedRecord.remainingDrinks : updatedRecord.remainingMeals
 
+                            console.log('🎉 Showing celebration toast for successful redemption')
                             // Show celebration toast for successful redemption
                             toast({
                                 title: `🎉 ${itemType.charAt(0).toUpperCase() + itemType.slice(1)} Claimed Successfully!`,
@@ -379,9 +451,18 @@ export default function POSPage() {
                                 variant: "celebration",
                             })
 
+                            console.log('✅ Scan process completed successfully')
                             setIsProcessing(false)
                             return
                         } else {
+                            // Debug: Log what's missing
+                            console.log('❌ Missing data in response:', {
+                                hasLumaData: !!lumaData,
+                                hasGuest: !!(lumaData && lumaData.guest),
+                                hasUserEmail: !!(lumaData && lumaData.guest && lumaData.guest.user_email),
+                                guestData: lumaData?.guest
+                            })
+
                             toast({
                                 title: "Guest not found",
                                 description: "This Lu.ma check-in could not be verified. No guest user_email found in response.",
@@ -391,6 +472,7 @@ export default function POSPage() {
                             return
                         }
                     } catch (apiError) {
+                        console.error('❌ API Error details:', apiError)
                         toast({
                             title: "API Error",
                             description: "Failed to verify Lu.ma check-in. Please try again.",
@@ -441,8 +523,11 @@ export default function POSPage() {
 
     const loadRecentScans = async () => {
         try {
+            console.log('🔥 Firebase: Starting loadRecentScans...')
             const scansQuery = query(collection(db, "redemptionScans"))
+            console.log('🔥 Firebase: Executing query for all redemption scans...')
             const scansSnapshot = await getDocs(scansQuery)
+            console.log('🔥 Firebase: Query completed, docs count:', scansSnapshot.docs.length)
 
             const scans = scansSnapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as ScanRecord))
@@ -453,6 +538,7 @@ export default function POSPage() {
                         const date2 = new Date(scan.scannedAt)
                         return !isNaN(date1.getTime()) && !isNaN(date2.getTime())
                     } catch {
+                        console.log('🔥 Firebase: Filtered out scan with invalid dates:', scan.id)
                         return false
                     }
                 })
@@ -462,11 +548,13 @@ export default function POSPage() {
                         const dateB = new Date(a.lastRedemptionAt || a.scannedAt)
                         return dateA.getTime() - dateB.getTime()
                     } catch {
+                        console.log('🔥 Firebase: Error sorting scans, using default order')
                         return 0
                     }
                 })
                 .slice(0, 10)
 
+            console.log('🔥 Firebase: Processed scans count:', scans.length)
             setScanHistory(scans)
 
             // Calculate today's scans (based on lastRedemptionAt)
@@ -479,12 +567,15 @@ export default function POSPage() {
                         : new Date(data.scannedAt).toISOString().slice(0, 10)
                     return redemptionDate === today
                 } catch {
+                    console.log('🔥 Firebase: Error calculating today scans for doc:', doc.id)
                     return false
                 }
             }).length
 
+            console.log('🔥 Firebase: Today scans count:', todayScansCount)
             setTodayScans(todayScansCount)
         } catch (error) {
+            console.error('🔥 Firebase: Error in loadRecentScans:', error)
             // Handle error silently
         }
     }
