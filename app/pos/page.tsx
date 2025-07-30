@@ -366,7 +366,6 @@ export default function POSPage() {
 
                             // Create LumaGuest object
                             const lumaGuest: LumaGuest = {
-                                bette
                                 api_id: eventId,
                                 guest: {
                                     api_id: eventId,
@@ -445,7 +444,7 @@ export default function POSPage() {
                                 console.log('❌ No drinks remaining')
                                 toast({
                                     title: "🍹 No drinks remaining",
-                                    description: `${obfuscateName(lumaGuest.guest.name)} has already claimed all ${DRINKS_LIMIT} drinks.`,
+                                    description: `${obfuscateName(lumaGuest.guest.user_name)} has already claimed all ${DRINKS_LIMIT} drinks.`,
                                     variant: "warning",
                                 })
                                 setScanRecord(guestRecord)
@@ -457,7 +456,7 @@ export default function POSPage() {
                                 console.log('❌ No meals remaining')
                                 toast({
                                     title: "🍽️ No meals remaining",
-                                    description: `${obfuscateName(lumaGuest.guest.name)} has already claimed all ${MEALS_LIMIT} meals.`,
+                                    description: `${obfuscateName(lumaGuest.guest.user_name)} has already claimed all ${MEALS_LIMIT} meals.`,
                                     variant: "warning",
                                 })
                                 setScanRecord(guestRecord)
@@ -470,7 +469,7 @@ export default function POSPage() {
                                 console.log('❌ All entitlements claimed')
                                 toast({
                                     title: "🎭 All entitlements claimed",
-                                    description: `${obfuscateName(lumaGuest.guest.name)} has claimed all available drinks and meals.`,
+                                    description: `${obfuscateName(lumaGuest.guest.user_name)} has claimed all available drinks and meals.`,
                                     variant: "warning",
                                 })
                                 setScanRecord(guestRecord)
@@ -518,7 +517,7 @@ export default function POSPage() {
                             // Show celebration toast for successful redemption
                             toast({
                                 title: `🎉 ${itemType.charAt(0).toUpperCase() + itemType.slice(1)} Claimed Successfully!`,
-                                description: `${obfuscateName(lumaGuest.guest.name)} - ${remainingCount} ${itemType}s remaining`,
+                                description: `${obfuscateName(lumaGuest.guest.user_name)} - ${remainingCount} ${itemType}s remaining`,
                                 variant: "celebration",
                             })
 
