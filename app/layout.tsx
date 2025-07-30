@@ -7,8 +7,8 @@ import './globals.css'
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "VivaCity - Longevity & Wellness",
-  description: "Mobile-first food ordering app with identity verification",
+  title: "",
+  description: "",
 }
 
 export const viewport: Viewport = {

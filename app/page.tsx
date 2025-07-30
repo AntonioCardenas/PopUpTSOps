@@ -15,19 +15,8 @@ export default function HomePage() {
           <p className="text-gray-600">Choose your action below</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="text-center">
-              <QrCode className="h-12 w-12 mx-auto text-blue-600 mb-2" />
-              <CardTitle>Generate QR Code</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                For attendees to generate their drinks QR codes
-              </p>
-            </CardHeader>
-            <CardContent>
-              <QRRedemption />
-            </CardContent>
-          </Card>
+        <div className="">
+
 
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader className="text-center">

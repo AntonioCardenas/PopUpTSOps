@@ -15,10 +15,10 @@ import { Calendar } from "lucide-react"
 interface QRPayload {
   email: string
   attendeeId: string
-  mealType: string
   validFrom: string
   validTo: string
   generatedAt: string
+  drinksAllowed?: number
 }
 
 interface Attendee {
@@ -59,7 +59,7 @@ export function QRRedemption() {
   }, [])
 
   const checkAttendeeEligibility = async (email: string) => {
-    const usersQuery = query(collection(db, "VivaCityUsers"), where("email", "==", email))
+    const usersQuery = query(collection(db, "ethpartyparticipants"), where("email", "==", email))
     const usersSnapshot = await getDocs(usersQuery)
     if (usersSnapshot.empty) {
       return { error: "Email not found in our database." }
@@ -94,16 +94,16 @@ export function QRRedemption() {
   const handleGenerateQR = async (attendee: any) => {
     // California time
     const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" }))
-    const qrPayload = {
+    const qrPayload: QRPayload = {
       email: attendee.email,
       attendeeId: attendee.id,
       validFrom: attendee.validFrom,
       validTo: attendee.validTo,
-      mealsAllowed: attendee.mealsAllowed,
+      drinksAllowed: attendee.drinksAllowed || 3,
       generatedAt: now.toISOString(),
     }
     setQrCodeDataUrl(JSON.stringify(qrPayload))
-    setRedeemMsg("Show this QR code to an admin or volunteer to redeem your meal.")
+    setRedeemMsg("Show this QR code to an admin or volunteer to redeem your drinks.")
   }
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -165,8 +165,8 @@ export function QRRedemption() {
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle>Your DrinksQR Code</CardTitle>
-            <p className="text-sm text-muted-foreground">Show this code to an admin or volunteer to redeem your meal</p>
+            <CardTitle>Your Drinks QR Code</CardTitle>
+            <p className="text-sm text-muted-foreground">Show this code to an admin or volunteer to redeem your drinks</p>
           </CardHeader>
           <CardContent className="flex flex-col items-center space-y-4">
             <QRCodeGenerator value={qrCodeDataUrl} size={200} />
@@ -189,7 +189,7 @@ export function QRRedemption() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold mb-4">Redeem Your Meal</CardTitle>
+          <CardTitle className="text-3xl font-bold mb-4">Redeem Your Drinks</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
@@ -209,7 +209,7 @@ export function QRRedemption() {
                 autoComplete="email"
               />
               <div className="text-xs text-gray-600">
-                We'll check your Drinksentitlements for today.
+                We'll check your drinks entitlements for today.
               </div>
               {emailTouched && !isValidEmail(email) && (
                 <div className="text-sm text-red-600">Please enter a valid email address.</div>
@@ -237,7 +237,7 @@ export function QRRedemption() {
           {isSearchingEmail && (
             <div className="mt-4 text-center">
               <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-              Checking Drinksentitlements...
+              Checking drinks entitlements...
             </div>
           )}
 
@@ -248,7 +248,7 @@ export function QRRedemption() {
             </div>
           )}
 
-          {/* Show attendee info and available meals */}
+          {/* Show attendee info and available drinks */}
           {attendeeInfo && (
             <div className="mt-6 space-y-4">
               <div className="text-center">
@@ -257,11 +257,11 @@ export function QRRedemption() {
                 <Badge variant="outline" className="mt-1">Attendee</Badge>
               </div>
               <div className="space-y-2">
-                <h4 className="font-medium text-sm">Available Meals:</h4>
-                {attendeeInfo.mealsAllowed > 0 && (
+                <h4 className="font-medium text-sm">Available Drinks:</h4>
+                {attendeeInfo.drinksAllowed > 0 && (
                   <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex-1">
-                      <p className="font-medium">Meal</p>
+                      <p className="font-medium">Drinks</p>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
@@ -278,8 +278,8 @@ export function QRRedemption() {
                     </Button>
                   </div>
                 )}
-                {attendeeInfo.mealsAllowed <= 0 && (
-                  <p className="text-sm text-red-600">No meals available for this attendee.</p>
+                {attendeeInfo.drinksAllowed <= 0 && (
+                  <p className="text-sm text-red-600">No drinks available for this attendee.</p>
                 )}
               </div>
             </div>

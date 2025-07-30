@@ -5,19 +5,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import QRScanner from "@/components/qr-scanner"
-import { collection, query, where, getDocs, addDoc, doc, updateDoc, increment } from "firebase/firestore"
+import { collection, query, where, getDocs, addDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { toast } from "@/hooks/use-toast"
-import { CheckCircle, XCircle, AlertCircle, Camera, Info, Coffee } from "lucide-react"
-import { loadLumaData, findGuestByEmail, validateGuestAccess, formatGuestInfo, type LumaGuest } from "@/lib/luma-utils"
+import { CheckCircle, XCircle, AlertCircle, Camera, Coffee } from "lucide-react"
+import { loadLumaData, findGuestByEmail, type LumaGuest } from "@/lib/luma-utils"
 
 interface ScannedData {
     email: string
     attendeeId: string
-    validFrom: string
-    validTo: string
-    mealsAllowed: number
+    validFrom?: string
+    validTo?: string
+    drinksAllowed: number
     generatedAt: string
+    lumaUrl?: string
+    eventId?: string
+    publicKey?: string
 }
 
 interface ScanRecord {
@@ -78,6 +81,20 @@ export default function POSPage() {
         }
     }
 
+    const getScanCount = async (email: string): Promise<number> => {
+        try {
+            const scansQuery = query(
+                collection(db, "drinksScans"),
+                where("email", "==", email.toLowerCase())
+            )
+            const scansSnapshot = await getDocs(scansQuery)
+            return scansSnapshot.size
+        } catch (error) {
+            console.error('Error getting scan count:', error)
+            return 0
+        }
+    }
+
     const saveScanRecord = async (data: ScannedData, lumaGuest: LumaGuest | null, scanCount: number, remainingDrinks: number) => {
         try {
             const scanRecord = {
@@ -99,17 +116,138 @@ export default function POSPage() {
         }
     }
 
+    const processLumaCheckIn = async (data: ScannedData, lumaGuest: LumaGuest) => {
+        try {
+            // Check scan history for this Lu.ma event
+            const scanCount = await getScanCount(data.email)
+            const remainingDrinks = Math.max(0, 3 - scanCount)
+
+            if (remainingDrinks <= 0) {
+                toast({
+                    title: "Drink limit reached",
+                    description: "This Lu.ma guest has already redeemed all 3 drinks.",
+                    variant: "destructive",
+                })
+                setIsProcessing(false)
+                return
+            }
+
+            // Save the scan record
+            const newScanRecord = await saveScanRecord(data, lumaGuest, scanCount + 1, remainingDrinks - 1)
+            setScanRecord(newScanRecord)
+
+            // Play success sound
+            if (audio) {
+                audio.play().catch(console.error)
+            }
+
+            // Show success message
+            toast({
+                title: "Lu.ma check-in successful",
+                description: `Lu.ma Guest (${data.eventId}) - ${remainingDrinks - 1} drinks remaining`,
+                variant: "default",
+            })
+
+            // Update scan history
+            await loadRecentScans()
+            setIsProcessing(false)
+        } catch (error) {
+            console.error('Error processing Lu.ma check-in:', error)
+            toast({
+                title: "Error processing check-in",
+                description: "Failed to process Lu.ma check-in. Please try again.",
+                variant: "destructive",
+            })
+            setIsProcessing(false)
+        }
+    }
+
     const handleScanSuccess = async (scannedText: string) => {
         setIsScanning(false)
         setIsProcessing(true)
 
         try {
-            // Parse the scanned QR code data
-            const data: ScannedData = JSON.parse(scannedText)
+            console.log('Scanned text:', scannedText)
+
+            // Check if it's a Lu.ma URL
+            if (scannedText.includes('https://lu.ma/check-in/')) {
+                // Decode URL first to handle encoded characters
+                const decodedUrl = decodeURIComponent(scannedText)
+                console.log('Decoded URL:', decodedUrl)
+
+                // Extract event ID and public key from Lu.ma URL (handles both encoded and non-encoded)
+                const urlMatch = decodedUrl.match(/https:\/\/lu\.ma\/check-in\/([^?]+)\?pk=([^&]+)/)
+                if (urlMatch) {
+                    const [, eventId, publicKey] = urlMatch
+                    console.log('Lu.ma URL detected:', { eventId, publicKey })
+
+                    // Create a data object from Lu.ma URL
+                    const data: ScannedData = {
+                        email: `luma-${eventId}@checkin.com`, // Placeholder email
+                        attendeeId: eventId,
+                        validFrom: new Date().toISOString(),
+                        validTo: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Valid for 24 hours
+                        drinksAllowed: 3, // Default 3 drinks for Lu.ma check-ins
+                        generatedAt: new Date().toISOString(),
+                        lumaUrl: scannedText,
+                        eventId,
+                        publicKey
+                    }
+
+                    setScannedData(data)
+
+                    // Create a mock LumaGuest for Lu.ma check-ins
+                    const mockLumaGuest: LumaGuest = {
+                        api_id: eventId,
+                        guest: {
+                            api_id: eventId,
+                            approval_status: "approved",
+                            email: data.email,
+                            name: `Lu.ma Guest (${eventId})`,
+                            checked_in_at: new Date().toISOString(),
+                            event_ticket: {
+                                name: "Lu.ma Event Ticket",
+                                checked_in_at: new Date().toISOString()
+                            }
+                        }
+                    }
+                    setLumaData(mockLumaGuest)
+
+                    // Process the Lu.ma check-in
+                    await processLumaCheckIn(data, mockLumaGuest)
+                    return
+                } else {
+                    toast({
+                        title: "Invalid Lu.ma URL",
+                        description: "The Lu.ma URL format is not recognized.",
+                        variant: "destructive",
+                    })
+                    setIsProcessing(false)
+                    return
+                }
+            }
+
+            // Try to parse as JSON
+            let data: ScannedData
+            try {
+                data = JSON.parse(scannedText)
+                console.log('Parsed QR data:', data)
+            } catch (parseError) {
+                console.error('Failed to parse QR code as JSON:', parseError)
+                toast({
+                    title: "Invalid QR Code",
+                    description: "The scanned QR code is not in the expected format. Please scan a valid drinks QR code.",
+                    variant: "destructive",
+                })
+                setIsProcessing(false)
+                return
+            }
+
             setScannedData(data)
 
             // Check Luma data
             const lumaGuest = await checkLumaData(data.email)
+            console.log(lumaGuest)
             setLumaData(lumaGuest)
 
             if (!lumaGuest) {
@@ -155,7 +293,7 @@ export default function POSPage() {
 
             toast({
                 title: "Drink redeemed successfully",
-                description: `${lumaGuest.guest.name} - ${newRemainingDrinks} drinks remaining`,
+                description: `${lumaGuest?.guest.name || data.email} - ${newRemainingDrinks} drinks remaining`,
                 variant: "default",
             })
 
@@ -293,6 +431,11 @@ export default function POSPage() {
                                             <Coffee className="h-3 w-3" />
                                             {scanRecord.remainingDrinks} remaining
                                         </Badge>
+                                        {scannedData?.lumaUrl && (
+                                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                                Lu.ma Check-in
+                                            </Badge>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -316,8 +459,8 @@ export default function POSPage() {
 
                                     {/* Drinks Remaining Display */}
                                     <div className={`mt-3 p-3 rounded-lg border ${scanRecord.remainingDrinks > 0
-                                            ? 'bg-green-50 border-green-200 text-green-800'
-                                            : 'bg-red-50 border-red-200 text-red-800'
+                                        ? 'bg-green-50 border-green-200 text-green-800'
+                                        : 'bg-red-50 border-red-200 text-red-800'
                                         }`}>
                                         <div className="flex items-center gap-2">
                                             <Coffee className="h-4 w-4" />

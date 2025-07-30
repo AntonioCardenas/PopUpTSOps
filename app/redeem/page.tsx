@@ -61,7 +61,7 @@ export default function RedeemPage() {
   }
 
   const checkAttendeeEligibility = async (email: string) => {
-    const usersQuery = query(collection(db, "VivaCityUsers"), where("email", "==", email))
+    const usersQuery = query(collection(db, "ethpartyparticipants"), where("email", "==", email))
     const usersSnapshot = await getDocs(usersQuery)
     if (usersSnapshot.empty) {
       return { error: "Email not found in our database." }
