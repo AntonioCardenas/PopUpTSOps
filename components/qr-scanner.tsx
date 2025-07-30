@@ -174,7 +174,7 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
           {hasPermission === null ? (
             <div className="flex flex-col items-center justify-center space-y-3 sm:space-y-4">
               <Camera className="h-10 w-10 sm:h-12 sm:w-12 text-gray-600" />
-              <p className="text-center text-xs sm:text-sm text-gray-600">
+              <p className="text-center text-xs sm:text-sm text-gray-700">
                 Camera access is required to scan QR codes
               </p>
               <button
@@ -216,7 +216,7 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
               ) : (
                 <div className="flex flex-col items-center justify-center h-full space-y-3">
                   <Camera className="h-10 w-10 sm:h-12 sm:w-12 text-gray-600" />
-                  <p className="text-center text-xs sm:text-sm text-gray-600">
+                  <p className="text-center text-xs sm:text-sm text-gray-700">
                     Starting camera...
                   </p>
                   <button

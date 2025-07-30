@@ -52,8 +52,21 @@ export default function POSPage() {
     const DRINKS_LIMIT = parseInt(process.env.NEXT_PUBLIC_MAX_DRINKS_PER_GUEST || '3')
     const MEALS_LIMIT = parseInt(process.env.NEXT_PUBLIC_MAX_MEALS_PER_GUEST || '1')
 
+    // Helper function to safely format dates
+    const safeFormatDate = (dateString: string | undefined, fallback: string = 'Date unavailable'): string => {
+        if (!dateString) return fallback
+        try {
+            const date = new Date(dateString)
+            if (isNaN(date.getTime())) return fallback
+            return date.toLocaleString()
+        } catch {
+            return fallback
+        }
+    }
+
     // Helper function to obfuscate personal information
     const obfuscateName = (fullName: string): string => {
+        if (!fullName || typeof fullName !== 'string') return 'Unknown Guest'
         const nameParts = fullName.trim().split(' ')
         if (nameParts.length <= 1) return fullName
         const firstName = nameParts[0]
@@ -62,6 +75,7 @@ export default function POSPage() {
     }
 
     const obfuscateEmail = (email: string): string => {
+        if (!email || typeof email !== 'string') return 'unknown@email.com'
         const [localPart, domain] = email.split('@')
         if (!domain) return email
 
@@ -197,8 +211,19 @@ export default function POSPage() {
 
                         // Check if we have guest data - directly use user_email from Lu.ma API
                         if (lumaData && lumaData.guest && lumaData.guest.user_email) {
-                            const guestEmail = lumaData.guest.user_email.toLowerCase();
-                            const guestName = lumaData.guest.user_name || guestEmail.split('@')[0];
+                            const guestEmail = lumaData.guest.user_email.toLowerCase().trim();
+                            const guestName = (lumaData.guest.user_name || guestEmail.split('@')[0] || 'Unknown Guest').trim();
+
+                            // Validate email format
+                            if (!guestEmail || !guestEmail.includes('@')) {
+                                toast({
+                                    title: "Invalid Guest Data",
+                                    description: "The guest email from Lu.ma is invalid.",
+                                    variant: "destructive",
+                                })
+                                setIsProcessing(false)
+                                return
+                            }
 
                             console.log('Lu.ma Guest Data Retrieved:', {
                                 userEmail: guestEmail,
@@ -373,7 +398,25 @@ export default function POSPage() {
 
             const scans = scansSnapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as ScanRecord))
-                .sort((a, b) => new Date(b.lastRedemptionAt || b.scannedAt).getTime() - new Date(a.lastRedemptionAt || a.scannedAt).getTime())
+                .filter(scan => {
+                    // Filter out records with invalid dates
+                    try {
+                        const date1 = scan.lastRedemptionAt ? new Date(scan.lastRedemptionAt) : new Date(scan.scannedAt)
+                        const date2 = new Date(scan.scannedAt)
+                        return !isNaN(date1.getTime()) && !isNaN(date2.getTime())
+                    } catch {
+                        return false
+                    }
+                })
+                .sort((a, b) => {
+                    try {
+                        const dateA = new Date(b.lastRedemptionAt || b.scannedAt)
+                        const dateB = new Date(a.lastRedemptionAt || a.scannedAt)
+                        return dateA.getTime() - dateB.getTime()
+                    } catch {
+                        return 0
+                    }
+                })
                 .slice(0, 10)
 
             setScanHistory(scans)
@@ -381,9 +424,15 @@ export default function POSPage() {
             // Calculate today's scans (based on lastRedemptionAt)
             const today = new Date().toISOString().slice(0, 10)
             const todayScansCount = scansSnapshot.docs.filter(doc => {
-                const data = doc.data()
-                const redemptionDate = data.lastRedemptionAt ? new Date(data.lastRedemptionAt).toISOString().slice(0, 10) : new Date(data.scannedAt).toISOString().slice(0, 10)
-                return redemptionDate === today
+                try {
+                    const data = doc.data()
+                    const redemptionDate = data.lastRedemptionAt
+                        ? new Date(data.lastRedemptionAt).toISOString().slice(0, 10)
+                        : new Date(data.scannedAt).toISOString().slice(0, 10)
+                    return redemptionDate === today
+                } catch {
+                    return false
+                }
             }).length
 
             setTodayScans(todayScansCount)
@@ -402,9 +451,9 @@ export default function POSPage() {
             <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
                 {/* Header */}
                 <div className="text-center mb-4 sm:mb-8">
-                    <p className="text-sm sm:text-base mb-2 sm:mb-4 text-slate-600"> Redemption System</p>
+                    <p className="text-sm sm:text-base mb-2 sm:mb-4 text-slate-800"> Redemption System</p>
                     <h1 className="text-2xl sm:text-[32px] mb-2 sm:mb-4 font-bold text-black">POS Scanner</h1>
-                    <p className="text-xs sm:text-sm mb-3 sm:mb-4 text-slate-700 max-w-2xl mx-auto">
+                    <p className="text-xs sm:text-sm mb-3 sm:mb-4 text-slate-900 max-w-2xl mx-auto">
                         Scan Lu.ma check-in URLs to redeem drinks and meals.
                         Real-time guest verification with secure server-side API handling.
                         Track redemptions with configurable limits per guest.
@@ -415,25 +464,25 @@ export default function POSPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
                     <div className="w-full h-full border-black border-2 rounded-md hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] bg-white transition-all">
                         <div className="p-3 sm:p-6 text-center">
-                            <p className="text-lg sm:text-2xl font-bold text-[#D0C4fB]">{todayScans}</p>
+                            <p className="text-lg sm:text-2xl font-bold text-purple-700">{todayScans}</p>
                             <p className="text-xs sm:text-sm text-gray-600">Today's Redemptions</p>
                         </div>
                     </div>
                     <div className="w-full h-full border-black border-2 rounded-md hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] bg-white transition-all">
                         <div className="p-3 sm:p-6 text-center">
-                            <p className="text-lg sm:text-2xl font-bold text-[#A4FCF6]">{scanHistory.filter(s => s.lumaVerified).length}</p>
+                            <p className="text-lg sm:text-2xl font-bold text-cyan-600">{scanHistory.filter(s => s.lumaVerified).length}</p>
                             <p className="text-xs sm:text-sm text-gray-600">Luma Verified</p>
                         </div>
                     </div>
                     <div className="w-full h-full border-black border-2 rounded-md hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] bg-white transition-all">
                         <div className="p-3 sm:p-6 text-center">
-                            <p className="text-lg sm:text-2xl font-bold text-[#81a8f8]">{scanHistory.filter(s => s.lastRedemptionType === 'drink').length}</p>
+                            <p className="text-lg sm:text-2xl font-bold text-blue-600">{scanHistory.filter(s => s.lastRedemptionType === 'drink').length}</p>
                             <p className="text-xs sm:text-sm text-gray-600">Drinks Redeemed</p>
                         </div>
                     </div>
                     <div className="w-full h-full border-black border-2 rounded-md hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] bg-white transition-all">
                         <div className="p-3 sm:p-6 text-center">
-                            <p className="text-lg sm:text-2xl font-bold text-[#D0C4fB]">{scanHistory.filter(s => s.lastRedemptionType === 'meal').length}</p>
+                            <p className="text-lg sm:text-2xl font-bold text-purple-700">{scanHistory.filter(s => s.lastRedemptionType === 'meal').length}</p>
                             <p className="text-xs sm:text-sm text-gray-600">Meals Redeemed</p>
                         </div>
                     </div>
@@ -442,7 +491,7 @@ export default function POSPage() {
                 {/* Redemption Type Selector */}
                 <div className="w-full border-black border-2 rounded-md bg-white">
                     <div className="p-4 sm:p-6">
-                        <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 text-[#81a8f8]">Redemption Type</h3>
+                        <h2 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 text-blue-700">Redemption Type</h2>
                         <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
                             <button
                                 onClick={() => setRedemptionType('drink')}
@@ -475,10 +524,10 @@ export default function POSPage() {
                 {/* Scan Button */}
                 <div className="w-full border-black border-2 rounded-md bg-white">
                     <div className="p-4 sm:p-6">
-                        <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 flex items-center gap-2 text-[#81a8f8]">
+                        <h2 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 flex items-center gap-2 text-blue-700">
                             <Camera className="h-5 w-5" />
                             QR Code Scanner
-                        </h3>
+                        </h2>
                         <button
                             onClick={() => setIsScanning(true)}
                             disabled={isProcessing}
@@ -505,12 +554,12 @@ export default function POSPage() {
                         <CardContent className="space-y-3 sm:space-y-4 bg-white">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                                 <div>
-                                    <h3 className="font-semibold text-sm text-gray-600">Guest</h3>
+                                    <h4 className="font-semibold text-sm text-gray-700">Guest</h4>
                                     <p className="text-lg font-medium">{obfuscateName(scanRecord.attendeeName)}</p>
-                                    <p className="text-sm text-gray-500">{obfuscateEmail(scanRecord.email)}</p>
+                                    <p className="text-sm text-gray-600">{obfuscateEmail(scanRecord.email)}</p>
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-sm text-gray-600">Redemption Status</h3>
+                                    <h4 className="font-semibold text-sm text-gray-700">Redemption Status</h4>
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <Badge variant={scanRecord.lumaVerified ? "default" : "secondary"}>
                                             {scanRecord.lumaVerified ? "Luma Verified" : "Not in Luma"}
@@ -530,7 +579,7 @@ export default function POSPage() {
                             {/* Luma Information */}
                             {lumaData && (
                                 <div className="border-t pt-4">
-                                    <h3 className="font-semibold text-sm text-gray-600 mb-2">Event Information</h3>
+                                    <h4 className="font-semibold text-sm text-gray-700 mb-2">Event Information</h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                         <div>
                                             <p><span className="font-medium">Ticket Type:</span> {lumaData.guest.event_ticket.name}</p>
@@ -578,15 +627,20 @@ export default function POSPage() {
                                 </div>
                             )}
 
-                            <div>
-                                <h3 className="font-semibold text-sm text-gray-600">Last Redemption</h3>
-                                <p className="text-sm">{new Date(scanRecord.lastRedemptionAt || scanRecord.scannedAt).toLocaleString()}</p>
-                                {scanRecord.lastRedemptionType && (
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Last redeemed: {scanRecord.lastRedemptionType}
+                            {/* Last Redemption Info */}
+                            {scanRecord.lastRedemptionAt && (
+                                <div className="border-t pt-4">
+                                    <h4 className="font-semibold text-sm text-gray-700">Last Redemption</h4>
+                                    <p className="text-sm">
+                                        {safeFormatDate(scanRecord.lastRedemptionAt)}
                                     </p>
-                                )}
-                            </div>
+                                    {scanRecord.lastRedemptionType && (
+                                        <p className="text-xs text-gray-600 mt-1">
+                                            Last redeemed: {scanRecord.lastRedemptionType}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
 
                             <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
                                 <Button onClick={resetScan} variant="outline" className="flex-1 h-14 sm:h-12 text-sm sm:text-base bg-black text-white">
@@ -602,15 +656,15 @@ export default function POSPage() {
                 {scanHistory.length > 0 && (
                     <div className="w-full border-black border-2 rounded-md bg-white">
                         <div className="p-4 sm:p-6">
-                            <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 text-[#81a8f8]">Recent Redemptions</h3>
+                            <h2 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 text-blue-700">Recent Redemptions</h2>
                             <div className="space-y-2 max-h-64 sm:max-h-96 overflow-y-auto">
                                 {scanHistory.map((scan, index) => (
                                     <div key={`${scan.id}-${index}`} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-lg gap-2 sm:gap-0">
                                         <div className="flex-1">
                                             <p className="font-medium text-sm sm:text-base">{obfuscateName(scan.attendeeName)}</p>
-                                            <p className="text-xs sm:text-sm text-gray-500">{obfuscateEmail(scan.email)}</p>
-                                            <p className="text-xs text-gray-400">
-                                                {new Date(scan.lastRedemptionAt || scan.scannedAt).toLocaleString()}
+                                            <p className="text-xs sm:text-sm text-gray-600">{obfuscateEmail(scan.email)}</p>
+                                            <p className="text-xs text-gray-500">
+                                                {safeFormatDate(scan.lastRedemptionAt)}
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-2 flex-wrap">

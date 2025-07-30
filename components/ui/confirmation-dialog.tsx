@@ -23,12 +23,12 @@ export default function ConfirmationDialog({
 }: ConfirmationDialogProps) {
     if (!isOpen) return null;
 
-      return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="w-96 px-8 py-4 bg-white border-4 border-black shadow-[8px_8px_0px_rgba(0,0,0,1)] grid place-content-center">
+    return (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="w-96 px-8 py-4 bg-white border-4 border-black shadow-[8px_8px_0px_rgba(0,0,0,1)] grid place-content-center">
                 <div>
                     <div className="flex justify-between items-center mb-4">
-                        <h1 className="text-2xl font-bold">{title}</h1>
+                        <h2 className="text-2xl font-bold">{title}</h2>
                         <button
                             onClick={onClose}
                             className="text-base hover:text-gray-600"

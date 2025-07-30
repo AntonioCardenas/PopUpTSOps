@@ -208,7 +208,7 @@ export function QRRedemption() {
                 placeholder="you@email.com"
                 autoComplete="email"
               />
-              <div className="text-xs text-gray-600">
+              <div className="text-xs text-gray-700">
                 We'll check your drinks entitlements for today.
               </div>
               {emailTouched && !isValidEmail(email) && (
@@ -236,28 +236,18 @@ export function QRRedemption() {
 
           {isSearchingEmail && (
             <div className="mt-4 text-center">
-              <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-              Checking drinks entitlements...
-            </div>
-          )}
-
-          {isLoading && !isSearchingEmail && (
-            <div className="mt-4 text-center">
-              <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-              Generating QR code...
-            </div>
-          )}
-
-          {/* Show attendee info and available drinks */}
-          {attendeeInfo && (
-            <div className="mt-6 space-y-4">
-              <div className="text-center">
-                <h3 className="font-semibold">{attendeeInfo.fullName}</h3>
-                <p className="text-sm text-muted-foreground">{attendeeInfo.email}</p>
-                <Badge variant="outline" className="mt-1">Attendee</Badge>
+              <div className="flex items-center justify-center mb-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               </div>
-              <div className="space-y-2">
-                <h4 className="font-medium text-sm">Available Drinks:</h4>
+              <p className="text-sm text-gray-600">Checking your entitlements...</p>
+            </div>
+          )}
+
+          {attendeeInfo && (
+            <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <h2 className="font-semibold">{attendeeInfo.fullName}</h2>
+              <div className="mt-2 space-y-1">
+                <h3 className="font-medium text-sm">Available Drinks:</h3>
                 {attendeeInfo.drinksAllowed > 0 && (
                   <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex-1">
