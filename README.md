@@ -25,12 +25,6 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 
 # Event Configuration
 NEXT_PUBLIC_EVENT_ID=evt-pEL2QyThOoezJWn  # Optional - leave empty for dynamic events
-NEXT_PUBLIC_EVENT_NAME="Your Event Name"
-NEXT_PUBLIC_MAX_DRINKS_PER_GUEST=3
-
-# Security Settings
-NEXT_PUBLIC_ENABLE_LUMA_INTEGRATION=true
-NEXT_PUBLIC_REQUIRE_LUMA_VERIFICATION=false
 ```
 
 ### 2. Install Dependencies
@@ -277,13 +271,9 @@ https://lu.ma/check-in/evt-pEL2QyThOoezJWn?pk=g-m8Y112wpmIWvmpW
 
 ### Environment Variables
 
-| Variable                                | Description                             | Default | Required |
-| --------------------------------------- | --------------------------------------- | ------- | -------- |
-| `NEXT_PUBLIC_EVENT_ID`                  | Lu.ma event ID for validation           | -       | Yes      |
-| `NEXT_PUBLIC_EVENT_NAME`                | Display name for the event              | "Event" | No       |
-| `NEXT_PUBLIC_MAX_DRINKS_PER_GUEST`      | Maximum drinks per guest                | 3       | No       |
-| `NEXT_PUBLIC_ENABLE_LUMA_INTEGRATION`   | Enable Lu.ma URL processing             | true    | No       |
-| `NEXT_PUBLIC_REQUIRE_LUMA_VERIFICATION` | Require Luma verification for all scans | false   | No       |
+| Variable               | Description                   | Default | Required |
+| ---------------------- | ----------------------------- | ------- | -------- |
+| `NEXT_PUBLIC_EVENT_ID` | Lu.ma event ID for validation | -       | No       |
 
 ### Firebase Configuration
 

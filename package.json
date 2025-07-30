@@ -1,7 +1,15 @@
 {
-  "name": "participant-app",
-  "version": "0.1.0",
+  "name": "PopUpTSOps",
+  "description": "PopUpTSOps Simple tracking system using Luma Tikets to keep track of amenities during events suchs as PopUp Citys, parties, conferences, etc.",
+  "version": "1.1.0",
   "private": true,
+  "author": "AntonioCardenas",
+  "license": "MIT",
+  "homepage": "https://yeou.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AntonioCardenas/PopUpTSOps"
+  },
   "scripts": {
     "build": "next build",
     "dev": "next dev",

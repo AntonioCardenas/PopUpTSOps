@@ -38,7 +38,6 @@ NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abcdef123456
 ```env
 # Event Configuration (Optional - for security)
 NEXT_PUBLIC_EVENT_ID=evt-pEL2QyThOoezJWn
-NEXT_PUBLIC_EVENT_NAME="Your Event Name"
 ```
 
 **Important:** The `NEXT_PUBLIC_EVENT_ID` is optional. If set, it validates Lu.ma URLs against this specific event ID for security. If left empty, the system accepts any Lu.ma event URL.
@@ -290,6 +289,8 @@ This will show:
 - Error details
 - Data validation results
 
+**Note:** This variable is not yet implemented in the current codebase but is planned for future development.
+
 ### Custom Collection Names
 
 Override default collection names:
@@ -300,23 +301,7 @@ NEXT_PUBLIC_PARTICIPANTS_COLLECTION=ethpartyparticipants
 NEXT_PUBLIC_USERS_COLLECTION=ethpartyparticipants
 ```
 
-### Drink Limits
-
-Configure maximum drinks per guest:
-
-```env
-NEXT_PUBLIC_MAX_DRINKS_PER_GUEST=3
-```
-
-### Luma Integration Settings
-
-```env
-# Enable/disable Lu.ma URL processing
-NEXT_PUBLIC_ENABLE_LUMA_INTEGRATION=true
-
-# Require Luma verification for all scans
-NEXT_PUBLIC_REQUIRE_LUMA_VERIFICATION=false
-```
+**Note:** These variables are not yet implemented in the current codebase but are planned for future development.
 
 ## 🚨 Troubleshooting
 
@@ -344,6 +329,7 @@ NEXT_PUBLIC_REQUIRE_LUMA_VERIFICATION=false
    - Restart development server after changing .env
    - Check variable names start with `NEXT_PUBLIC_`
    - Verify .env file is in project root
+   - Note: Only `NEXT_PUBLIC_EVENT_ID` is currently implemented
 
 ### Validation Checklist
 
@@ -365,5 +351,5 @@ For environment setup issues:
 1. Check this documentation
 2. Review Firebase console settings
 3. Verify environment variable format
-4. Enable debug mode for detailed logs
+4. Check console logs for debugging (debug mode not yet implemented)
 5. Create an issue in the repository
