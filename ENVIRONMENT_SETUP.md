@@ -24,6 +24,26 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789
 NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abcdef123456
 ```
 
+### 3. Lu.ma API Configuration
+
+Get your Lu.ma API key from your [Lu.ma Dashboard](https://lu.ma/dashboard):
+
+```env
+# Lu.ma API Configuration (Required)
+NEXT_PUBLIC_LUMAAPIKEY=your_luma_api_key_here
+```
+
+**How to get Lu.ma API key:**
+
+1. Go to [Lu.ma Dashboard](https://lu.ma/dashboard)
+2. Navigate to your event settings
+3. Find the API section
+4. Generate or copy your API key
+5. Add it to your `.env` file
+
+**API Endpoint:**
+The system uses the Lu.ma API endpoint: `https://public-api.luma.com/v1/event/get-guest`
+
 **How to get Firebase config:**
 
 1. Go to [Firebase Console](https://console.firebase.google.com/)
@@ -33,7 +53,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abcdef123456
 5. Click the web icon (</>)
 6. Register your app and copy the config values
 
-### 3. Event Configuration
+### 4. Event Configuration
 
 ```env
 # Event Configuration (Optional - for security)
@@ -41,6 +61,16 @@ NEXT_PUBLIC_EVENT_ID=evt-pEL2QyThOoezJWn
 ```
 
 **Important:** The `NEXT_PUBLIC_EVENT_ID` is optional. If set, it validates Lu.ma URLs against this specific event ID for security. If left empty, the system accepts any Lu.ma event URL.
+
+### 5. Redemption Limits Configuration
+
+```env
+# Redemption Limits (Optional - defaults shown)
+NEXT_PUBLIC_MAX_DRINKS_PER_GUEST=3  # Maximum drinks per guest
+NEXT_PUBLIC_MAX_MEALS_PER_GUEST=1   # Maximum meals per guest
+```
+
+**Important:** These limits control how many drinks and meals each guest can redeem. The system counts from 1 (where 0 means nothing left).
 
 ## 🔒 Security Configuration
 

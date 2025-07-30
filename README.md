@@ -1,6 +1,6 @@
-# PopUpTSOps - Drinks QR Code System
+# PopUpTSOps - Lu.ma Redemption System
 
-A comprehensive QR code scanning system for drink redemptions at events, with integration for both custom QR codes and Lu.ma check-in URLs.
+A comprehensive QR code scanning system for drink and meal redemptions at events, with direct integration for Lu.ma check-in URLs and secure server-side API handling.
 
 ## 🚀 Quick Start
 
@@ -25,7 +25,28 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 
 # Event Configuration
 NEXT_PUBLIC_EVENT_ID=evt-pEL2QyThOoezJWn  # Optional - leave empty for dynamic events
+
+# Lu.ma API Configuration
+NEXT_PUBLIC_LUMAAPIKEY=your_luma_api_key_here  # Required for Lu.ma integration
+
+# Redemption Limits
+NEXT_PUBLIC_MAX_DRINKS_PER_GUEST=3  # Default: 3 drinks per guest
+NEXT_PUBLIC_MAX_MEALS_PER_GUEST=1   # Default: 1 meal per guest
 ```
+
+### 2. Debugging and Logging
+
+The system includes comprehensive logging for debugging:
+
+- **API Response Logging**: Console logs show detailed Lu.ma API response data
+- **Event Validation**: Logs when event ID validation occurs
+- **Guest Data**: Shows guest email, name, and approval status
+- **Error Handling**: Clear error messages for API failures
+
+**To view logs:**
+
+- **Development**: Check your terminal where you run `npm run dev`
+- **Production**: Check your hosting platform's logs (Vercel, Netlify, etc.)
 
 ### 2. Install Dependencies
 
@@ -47,17 +68,36 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 ## 🔒 Security & Configuration
 
-### Event ID Security
+### Lu.ma API Integration
+
+The system integrates directly with Lu.ma's API for real-time guest verification:
+
+#### **API Key Setup:**
+
+1. Get your Lu.ma API key from your Lu.ma dashboard
+2. Add it to your `.env` file as `NEXT_PUBLIC_LUMAAPIKEY`
+3. The system will automatically verify guests against your Lu.ma event
+
+#### **API Endpoint:**
+
+The system uses the Lu.ma API endpoint: `https://public-api.luma.com/v1/event/get-guest`
+
+#### **Event ID Security:**
 
 The system can operate in two modes for event ID validation:
 
-#### **Secure Mode (Recommended):**
-
+**Secure Mode (Recommended):**
 Set `NEXT_PUBLIC_EVENT_ID` in your `.env` file to validate Lu.ma URLs against a specific event. This prevents unauthorized access from other events.
 
-#### **Dynamic Mode (Flexible):**
-
+**Dynamic Mode (Flexible):**
 Leave `NEXT_PUBLIC_EVENT_ID` empty to accept any Lu.ma event URL. The system will use the event ID from the scanned URL.
+
+#### **Redemption Limits:**
+
+Configure drink and meal limits per guest:
+
+- `NEXT_PUBLIC_MAX_DRINKS_PER_GUEST=3` (default: 3 drinks)
+- `NEXT_PUBLIC_MAX_MEALS_PER_GUEST=1` (default: 1 meal)
 
 **To change the event ID:**
 

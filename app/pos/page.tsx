@@ -1,15 +1,15 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import QRScanner from "@/components/qr-scanner"
-import { collection, query, where, getDocs, addDoc } from "firebase/firestore"
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { toast } from "@/hooks/use-toast"
-import { CheckCircle, XCircle, AlertCircle, Camera, Coffee } from "lucide-react"
-import { loadLumaData, findGuestByEmail, type LumaGuest } from "@/lib/luma-utils"
+import { CheckCircle, XCircle, AlertCircle, Camera, Coffee, Utensils } from "lucide-react"
+import { type LumaGuest } from "@/lib/luma-utils"
 
 interface ScannedData {
     email: string
@@ -17,6 +17,7 @@ interface ScannedData {
     validFrom?: string
     validTo?: string
     drinksAllowed: number
+    mealsAllowed: number
     generatedAt: string
     lumaUrl?: string
     eventId?: string
@@ -29,136 +30,92 @@ interface ScanRecord {
     attendeeName: string
     scannedAt: string
     lumaVerified: boolean
-    drinksRedeemed: boolean
-    scanCount: number
     remainingDrinks: number
+    remainingMeals: number
+    publicKey: string
+    eventId?: string
+    lastRedemptionType?: 'drink' | 'meal'
+    lastRedemptionAt?: string
 }
 
 export default function POSPage() {
     const [isScanning, setIsScanning] = useState(false)
-    const [scannedData, setScannedData] = useState<ScannedData | null>(null)
     const [lumaData, setLumaData] = useState<LumaGuest | null>(null)
     const [scanRecord, setScanRecord] = useState<ScanRecord | null>(null)
     const [isProcessing, setIsProcessing] = useState(false)
     const [scanHistory, setScanHistory] = useState<ScanRecord[]>([])
     const [audio] = useState(typeof window !== 'undefined' ? new Audio('/beep.mp3') : null)
     const [todayScans, setTodayScans] = useState(0)
+    const [redemptionType, setRedemptionType] = useState<'drink' | 'meal'>('drink')
 
-    const checkLumaData = async (email: string): Promise<LumaGuest | null> => {
+    // Get limits from environment variables, default to 3 drinks and 1 meal
+    const DRINKS_LIMIT = parseInt(process.env.NEXT_PUBLIC_MAX_DRINKS_PER_GUEST || '3')
+    const MEALS_LIMIT = parseInt(process.env.NEXT_PUBLIC_MAX_MEALS_PER_GUEST || '1')
+
+    const findOrCreateGuestRecord = async (publicKey: string, email: string, attendeeName: string, lumaVerified: boolean, eventId?: string): Promise<ScanRecord> => {
         try {
-            const lumaData = await loadLumaData()
-            if (!lumaData) {
-                return null
+            // Try to find existing record by publicKey
+            const guestQuery = query(
+                collection(db, "redemptionScans"),
+                where("publicKey", "==", publicKey)
+            )
+            const guestSnapshot = await getDocs(guestQuery)
+
+            if (!guestSnapshot.empty) {
+                // Return existing record
+                const existingDoc = guestSnapshot.docs[0]
+                return { id: existingDoc.id, ...existingDoc.data() } as ScanRecord
             }
 
-            return findGuestByEmail(lumaData, email)
-        } catch (error) {
-            console.error('Error checking Luma data:', error)
-            return null
-        }
-    }
-
-    const checkScanHistory = async (email: string): Promise<ScanRecord | null> => {
-        try {
-            const scansQuery = query(
-                collection(db, "drinksScans"),
-                where("email", "==", email.toLowerCase())
-            )
-            const scansSnapshot = await getDocs(scansQuery)
-
-            if (!scansSnapshot.empty) {
-                const latestScan = scansSnapshot.docs
-                    .map(doc => ({ id: doc.id, ...doc.data() } as ScanRecord))
-                    .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime())[0]
-
-                return latestScan
-            }
-
-            return null
-        } catch (error) {
-            console.error('Error checking scan history:', error)
-            return null
-        }
-    }
-
-    const getScanCount = async (email: string): Promise<number> => {
-        try {
-            const scansQuery = query(
-                collection(db, "drinksScans"),
-                where("email", "==", email.toLowerCase())
-            )
-            const scansSnapshot = await getDocs(scansQuery)
-            return scansSnapshot.size
-        } catch (error) {
-            console.error('Error getting scan count:', error)
-            return 0
-        }
-    }
-
-    const saveScanRecord = async (data: ScannedData, lumaGuest: LumaGuest | null, scanCount: number, remainingDrinks: number) => {
-        try {
-            const scanRecord = {
-                email: data.email.toLowerCase(),
-                attendeeName: lumaGuest?.guest.name || 'Unknown',
+            // Create new record if not found
+            const newRecord = {
+                email: email.toLowerCase(),
+                attendeeName: attendeeName,
                 scannedAt: new Date().toISOString(),
-                lumaVerified: !!lumaGuest,
-                drinksRedeemed: true,
-                scanCount: scanCount,
-                remainingDrinks: remainingDrinks,
-                qrData: data
+                lumaVerified: lumaVerified,
+                remainingDrinks: DRINKS_LIMIT,
+                remainingMeals: MEALS_LIMIT,
+                publicKey: publicKey,
+                eventId: eventId
             }
 
-            const docRef = await addDoc(collection(db, "drinksScans"), scanRecord)
-            return { id: docRef.id, ...scanRecord }
+            const docRef = await addDoc(collection(db, "redemptionScans"), newRecord)
+            return { id: docRef.id, ...newRecord }
         } catch (error) {
-            console.error('Error saving scan record:', error)
+            console.error('Error finding or creating guest record:', error)
             throw error
         }
     }
 
-    const processLumaCheckIn = async (data: ScannedData, lumaGuest: LumaGuest) => {
+    const updateGuestRedemption = async (recordId: string, redemptionType: 'drink' | 'meal'): Promise<ScanRecord> => {
         try {
-            // Check scan history for this Lu.ma event
-            const scanCount = await getScanCount(data.email)
-            const remainingDrinks = Math.max(0, 3 - scanCount)
+            const recordRef = doc(db, "redemptionScans", recordId)
+            const recordDoc = await getDoc(recordRef)
 
-            if (remainingDrinks <= 0) {
-                toast({
-                    title: "Drink limit reached",
-                    description: "This Lu.ma guest has already redeemed all 3 drinks.",
-                    variant: "destructive",
-                })
-                setIsProcessing(false)
-                return
+            if (!recordDoc.exists()) {
+                throw new Error('Record not found')
             }
 
-            // Save the scan record
-            const newScanRecord = await saveScanRecord(data, lumaGuest, scanCount + 1, remainingDrinks - 1)
-            setScanRecord(newScanRecord)
-
-            // Play success sound
-            if (audio) {
-                audio.play().catch(console.error)
+            const currentData = recordDoc.data() as ScanRecord
+            const updateData: Partial<ScanRecord> = {
+                lastRedemptionType: redemptionType,
+                lastRedemptionAt: new Date().toISOString()
             }
 
-            // Show success message
-            toast({
-                title: "Lu.ma check-in successful",
-                description: `Lu.ma Guest (${data.eventId}) - ${remainingDrinks - 1} drinks remaining`,
-                variant: "default",
-            })
+            // Decrement the appropriate counter
+            if (redemptionType === 'drink') {
+                updateData.remainingDrinks = Math.max(0, currentData.remainingDrinks - 1)
+            } else {
+                updateData.remainingMeals = Math.max(0, currentData.remainingMeals - 1)
+            }
 
-            // Update scan history
-            await loadRecentScans()
-            setIsProcessing(false)
+            await updateDoc(recordRef, updateData)
+
+            // Return updated record
+            return { ...currentData, ...updateData }
         } catch (error) {
-            console.error('Error processing Lu.ma check-in:', error)
-            toast({
-                title: "Error processing check-in",
-                description: "Failed to process Lu.ma check-in. Please try again.",
-                variant: "destructive",
-            })
-            setIsProcessing(false)
+            console.error('Error updating guest redemption:', error)
+            throw error
         }
     }
 
@@ -175,58 +132,184 @@ export default function POSPage() {
                 const decodedUrl = decodeURIComponent(scannedText)
                 console.log('Decoded URL:', decodedUrl)
 
-                // Extract event ID and public key from Lu.ma URL (handles both encoded and non-encoded)
+                // Extract event ID and proxy key from Lu.ma URL
                 const urlMatch = decodedUrl.match(/https:\/\/lu\.ma\/check-in\/([^?]+)\?pk=([^&]+)/)
                 if (urlMatch) {
-                    const [, eventId, publicKey] = urlMatch
-                    console.log('Lu.ma URL detected:', { eventId, publicKey })
+                    const [, eventId, proxyKey] = urlMatch
+                    console.log('Lu.ma URL detected:', { eventId, proxyKey })
 
-                    // Check if we have a configured event ID, otherwise use the one from URL
+                    // Validate event ID against environment variable
                     const configuredEventId = process.env.NEXT_PUBLIC_EVENT_ID
-                    const finalEventId = configuredEventId || eventId
-
-                    console.log('Event ID validation:', {
-                        configuredEventId,
-                        urlEventId: eventId,
-                        finalEventId,
-                        usingConfigured: !!configuredEventId
-                    })
-
-                    // Create a data object from Lu.ma URL
-                    const data: ScannedData = {
-                        email: `luma-${eventId}@checkin.com`, // Use original eventId for email
-                        attendeeId: eventId,
-                        validFrom: new Date().toISOString(),
-                        validTo: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Valid for 24 hours
-                        drinksAllowed: 3, // Default 3 drinks for Lu.ma check-ins
-                        generatedAt: new Date().toISOString(),
-                        lumaUrl: scannedText,
-                        eventId: finalEventId, // Use final event ID for validation
-                        publicKey
+                    if (configuredEventId && eventId !== configuredEventId) {
+                        toast({
+                            title: "Invalid Event",
+                            description: `This QR code is for a different event. Expected: ${configuredEventId}, Got: ${eventId}`,
+                            variant: "destructive",
+                        })
+                        setIsProcessing(false)
+                        return
                     }
 
-                    setScannedData(data)
+                    // Make API request to local /api/luma endpoint
+                    try {
+                        console.log('Making request to /api/luma:', { eventId, proxyKey });
 
-                    // Create a mock LumaGuest for Lu.ma check-ins
-                    const mockLumaGuest: LumaGuest = {
-                        api_id: eventId,
-                        guest: {
-                            api_id: eventId,
-                            approval_status: "approved",
-                            email: data.email,
-                            name: `Lu.ma Guest (${eventId})`,
-                            checked_in_at: new Date().toISOString(),
-                            event_ticket: {
-                                name: "Lu.ma Event Ticket",
-                                checked_in_at: new Date().toISOString()
+                        const response = await fetch(`/api/luma?event_api_id=${eventId}&proxy_key=${proxyKey}`, {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
                             }
-                        }
-                    }
-                    setLumaData(mockLumaGuest)
+                        });
 
-                    // Process the Lu.ma check-in
-                    await processLumaCheckIn(data, mockLumaGuest)
-                    return
+                        console.log('/api/luma response status:', response.status);
+                        console.log('/api/luma response:', response);
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            console.error('/api/luma error response:', {
+                                status: response.status,
+                                statusText: response.statusText,
+                                body: errorText
+                            });
+                            throw new Error(`/api/luma responded with status: ${response.status} - ${errorText}`);
+                        }
+
+                        const lumaData = await response.json();
+                        console.log('/api/luma response:', lumaData);
+
+                        // Check if we have guest data - directly use user_email from Lu.ma API
+                        if (lumaData && lumaData.guest && lumaData.guest.user_email) {
+                            const guestEmail = lumaData.guest.user_email.toLowerCase();
+                            const guestName = lumaData.guest.user_name || guestEmail.split('@')[0];
+
+                            console.log('Lu.ma Guest Data Retrieved:', {
+                                userEmail: guestEmail,
+                                name: guestName,
+                                eventId,
+                                proxyKey,
+                                approvalStatus: lumaData.guest.approval_status,
+                                source: 'Lu.ma API'
+                            });
+
+                            // Create LumaGuest object
+                            const lumaGuest: LumaGuest = {
+                                api_id: eventId,
+                                guest: {
+                                    api_id: eventId,
+                                    approval_status: lumaData.guest.approval_status || "approved",
+                                    email: guestEmail,
+                                    name: guestName,
+                                    checked_in_at: lumaData.guest.checked_in_at || new Date().toISOString(),
+                                    event_ticket: {
+                                        name: lumaData.guest.event_ticket?.name || "Lu.ma Event Ticket",
+                                        checked_in_at: lumaData.guest.checked_in_at || new Date().toISOString()
+                                    }
+                                }
+                            }
+                            setLumaData(lumaGuest)
+
+                            // Create data object using actual guest data from Lu.ma
+                            const data: ScannedData = {
+                                email: guestEmail,
+                                attendeeId: eventId,
+                                validFrom: new Date().toISOString(),
+                                validTo: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                                drinksAllowed: DRINKS_LIMIT,
+                                mealsAllowed: MEALS_LIMIT,
+                                generatedAt: new Date().toISOString(),
+                                lumaUrl: scannedText,
+                                eventId: eventId,
+                                publicKey: proxyKey
+                            }
+
+                            // Find or create guest record using actual guest data
+                            const guestRecord = await findOrCreateGuestRecord(
+                                data.publicKey!,
+                                data.email,
+                                lumaGuest.guest.name,
+                                true, // Always verified for Lu.ma guests
+                                data.eventId
+                            )
+
+                            // Check if redemption is allowed
+                            if (redemptionType === 'drink' && guestRecord.remainingDrinks <= 0) {
+                                toast({
+                                    title: "No drinks remaining",
+                                    description: `This guest has already redeemed all ${DRINKS_LIMIT} drinks.`,
+                                    variant: "destructive",
+                                })
+                                setScanRecord(guestRecord)
+                                setIsProcessing(false)
+                                return
+                            }
+
+                            if (redemptionType === 'meal' && guestRecord.remainingMeals <= 0) {
+                                toast({
+                                    title: "No meals remaining",
+                                    description: `This guest has already redeemed all ${MEALS_LIMIT} meals.`,
+                                    variant: "destructive",
+                                })
+                                setScanRecord(guestRecord)
+                                setIsProcessing(false)
+                                return
+                            }
+
+                            // Update the redemption
+                            const updatedRecord = await updateGuestRedemption(guestRecord.id, redemptionType)
+                            setScanRecord(updatedRecord)
+
+                            // Update scan history
+                            setScanHistory(prev => [updatedRecord, ...prev.filter(r => r.id !== updatedRecord.id).slice(0, 9)])
+
+                            // Update today's scan count
+                            setTodayScans(prev => prev + 1)
+
+                            // Play success sound
+                            if (audio) {
+                                audio.play().catch(console.error)
+                            }
+
+                            const itemType = redemptionType === 'drink' ? 'drink' : 'meal'
+                            const remainingCount = redemptionType === 'drink' ? updatedRecord.remainingDrinks : updatedRecord.remainingMeals
+
+                            toast({
+                                title: `Lu.ma ${itemType} redemption successful`,
+                                description: `${lumaGuest.guest.name} - ${remainingCount} ${itemType}s remaining`,
+                                variant: "default",
+                            })
+
+                            setIsProcessing(false)
+                            return
+                        } else {
+                            console.log('No guest user_email found in Lu.ma API response', {
+                                hasGuest: !!lumaData.guest,
+                                hasUserEmail: !!lumaData.guest?.user_email,
+                                availableFields: lumaData.guest ? Object.keys(lumaData.guest) : [],
+                                responseData: lumaData
+                            });
+                            toast({
+                                title: "Guest not found",
+                                description: "This Lu.ma check-in could not be verified. No guest user_email found in response.",
+                                variant: "destructive",
+                            })
+                            setIsProcessing(false)
+                            return
+                        }
+                    } catch (apiError) {
+                        console.error('Lu.ma API request failed:', apiError);
+                        if (apiError instanceof Error) {
+                            console.error('API Error details:', {
+                                message: apiError.message,
+                                stack: apiError.stack
+                            });
+                        }
+                        toast({
+                            title: "API Error",
+                            description: "Failed to verify Lu.ma check-in. Please try again.",
+                            variant: "destructive",
+                        })
+                        setIsProcessing(false)
+                        return
+                    }
                 } else {
                     toast({
                         title: "Invalid Lu.ma URL",
@@ -238,75 +321,14 @@ export default function POSPage() {
                 }
             }
 
-            // Try to parse as JSON
-            let data: ScannedData
-            try {
-                data = JSON.parse(scannedText)
-                console.log('Parsed QR data:', data)
-            } catch (parseError) {
-                console.error('Failed to parse QR code as JSON:', parseError)
-                toast({
-                    title: "Invalid QR Code",
-                    description: "The scanned QR code is not in the expected format. Please scan a valid drinks QR code.",
-                    variant: "destructive",
-                })
-                setIsProcessing(false)
-                return
-            }
-
-            setScannedData(data)
-
-            // Check Luma data
-            const lumaGuest = await checkLumaData(data.email)
-            console.log(lumaGuest)
-            setLumaData(lumaGuest)
-
-            if (!lumaGuest) {
-                toast({
-                    title: "Guest not found",
-                    description: "This email is not registered in the event.",
-                    variant: "destructive",
-                })
-                return
-            }
-
-            // Check scan history
-            const existingScan = await checkScanHistory(data.email)
-            const currentScanCount = existingScan ? existingScan.scanCount : 0
-            const remainingDrinks = 3 - currentScanCount
-
-            if (currentScanCount >= 3) {
-                toast({
-                    title: "No drinks remaining",
-                    description: "This guest has already redeemed all 3 drinks.",
-                    variant: "destructive",
-                })
-                setScanRecord(existingScan)
-                return
-            }
-
-            // Save the scan record
-            const newScanCount = currentScanCount + 1
-            const newRemainingDrinks = remainingDrinks - 1
-            const savedRecord = await saveScanRecord(data, lumaGuest, newScanCount, newRemainingDrinks)
-            setScanRecord(savedRecord)
-
-            // Update scan history
-            setScanHistory(prev => [savedRecord, ...prev.slice(0, 9)]) // Keep last 10 scans
-
-            // Update today's scan count
-            setTodayScans(prev => prev + 1)
-
-            // Play success sound
-            if (audio) {
-                audio.play().catch(console.error)
-            }
-
+            // Only Lu.ma URLs are supported
             toast({
-                title: "Drink redeemed successfully",
-                description: `${lumaGuest?.guest.name || data.email} - ${newRemainingDrinks} drinks remaining`,
-                variant: "default",
+                title: "Invalid QR Code",
+                description: "Please scan a valid Lu.ma check-in URL.",
+                variant: "destructive",
             })
+            setIsProcessing(false)
+            return
 
         } catch (error) {
             console.error('Error processing scan:', error)
@@ -321,28 +343,28 @@ export default function POSPage() {
     }
 
     const resetScan = () => {
-        setScannedData(null)
         setLumaData(null)
         setScanRecord(null)
     }
 
     const loadRecentScans = async () => {
         try {
-            const scansQuery = query(collection(db, "drinksScans"))
+            const scansQuery = query(collection(db, "redemptionScans"))
             const scansSnapshot = await getDocs(scansQuery)
 
             const scans = scansSnapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as ScanRecord))
-                .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime())
+                .sort((a, b) => new Date(b.lastRedemptionAt || b.scannedAt).getTime() - new Date(a.lastRedemptionAt || a.scannedAt).getTime())
                 .slice(0, 10)
 
             setScanHistory(scans)
 
-            // Calculate today's scans
+            // Calculate today's scans (based on lastRedemptionAt)
             const today = new Date().toISOString().slice(0, 10)
             const todayScansCount = scansSnapshot.docs.filter(doc => {
-                const scanDate = new Date(doc.data().scannedAt).toISOString().slice(0, 10)
-                return scanDate === today
+                const data = doc.data()
+                const redemptionDate = data.lastRedemptionAt ? new Date(data.lastRedemptionAt).toISOString().slice(0, 10) : new Date(data.scannedAt).toISOString().slice(0, 10)
+                return redemptionDate === today
             }).length
 
             setTodayScans(todayScansCount)
@@ -361,17 +383,17 @@ export default function POSPage() {
             <div className="max-w-4xl mx-auto space-y-6">
                 {/* Header */}
                 <div className="text-center">
-                    <h1 className="text-3xl font-bold text-gray-900">POS - Drinks Redemption</h1>
-                    <p className="text-gray-600 mt-2">Scan QR codes to redeem drinks (3 per guest)</p>
+                    <h1 className="text-3xl font-bold text-gray-900">POS - Redemption System</h1>
+                    <p className="text-gray-600 mt-2">Scan QR codes to redeem drinks and meals</p>
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <Card>
                         <CardContent className="p-6">
                             <div className="text-center">
                                 <p className="text-2xl font-bold text-blue-600">{todayScans}</p>
-                                <p className="text-sm text-gray-600">Today's Drinks</p>
+                                <p className="text-sm text-gray-600">Today's Redemptions</p>
                             </div>
                         </CardContent>
                     </Card>
@@ -386,12 +408,47 @@ export default function POSPage() {
                     <Card>
                         <CardContent className="p-6">
                             <div className="text-center">
-                                <p className="text-2xl font-bold text-orange-600">{scanHistory.length}</p>
-                                <p className="text-sm text-gray-600">Total Recent</p>
+                                <p className="text-2xl font-bold text-orange-600">{scanHistory.filter(s => s.lastRedemptionType === 'drink').length}</p>
+                                <p className="text-sm text-gray-600">Drinks Redeemed</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="p-6">
+                            <div className="text-center">
+                                <p className="text-2xl font-bold text-purple-600">{scanHistory.filter(s => s.lastRedemptionType === 'meal').length}</p>
+                                <p className="text-sm text-gray-600">Meals Redeemed</p>
                             </div>
                         </CardContent>
                     </Card>
                 </div>
+
+                {/* Redemption Type Selector */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Redemption Type</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex gap-4">
+                            <Button
+                                onClick={() => setRedemptionType('drink')}
+                                variant={redemptionType === 'drink' ? 'default' : 'outline'}
+                                className="flex-1"
+                            >
+                                <Coffee className="h-4 w-4 mr-2" />
+                                Drinks ({DRINKS_LIMIT} per guest)
+                            </Button>
+                            <Button
+                                onClick={() => setRedemptionType('meal')}
+                                variant={redemptionType === 'meal' ? 'default' : 'outline'}
+                                className="flex-1"
+                            >
+                                <Utensils className="h-4 w-4 mr-2" />
+                                Meals ({MEALS_LIMIT} per guest)
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
 
                 {/* Scan Button */}
                 <Card>
@@ -407,7 +464,7 @@ export default function POSPage() {
                             disabled={isProcessing}
                             className="w-full h-12 text-lg btn bg-slate-900 text-white"
                         >
-                            {isProcessing ? "Processing..." : "Start Scanning"}
+                            {isProcessing ? "Processing..." : `Start Scanning for ${redemptionType}s`}
                         </Button>
                     </CardContent>
                 </Card>
@@ -433,20 +490,19 @@ export default function POSPage() {
                                     <p className="text-sm text-gray-500">{scanRecord.email}</p>
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-sm text-gray-600">Drinks Status</h3>
-                                    <div className="flex items-center gap-2">
+                                    <h3 className="font-semibold text-sm text-gray-600">Redemption Status</h3>
+                                    <div className="flex items-center gap-2 flex-wrap">
                                         <Badge variant={scanRecord.lumaVerified ? "default" : "secondary"}>
                                             {scanRecord.lumaVerified ? "Luma Verified" : "Not in Luma"}
                                         </Badge>
                                         <Badge variant="outline" className="flex items-center gap-1">
                                             <Coffee className="h-3 w-3" />
-                                            {scanRecord.remainingDrinks} remaining
+                                            {scanRecord.remainingDrinks} drinks
                                         </Badge>
-                                        {scannedData?.lumaUrl && (
-                                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                                Lu.ma Check-in
-                                            </Badge>
-                                        )}
+                                        <Badge variant="outline" className="flex items-center gap-1">
+                                            <Utensils className="h-3 w-3" />
+                                            {scanRecord.remainingMeals} meals
+                                        </Badge>
                                     </div>
                                 </div>
                             </div>
@@ -468,33 +524,48 @@ export default function POSPage() {
                                         </div>
                                     </div>
 
-                                    {/* Drinks Remaining Display */}
-                                    <div className={`mt-3 p-3 rounded-lg border ${scanRecord.remainingDrinks > 0
-                                        ? 'bg-green-50 border-green-200 text-green-800'
-                                        : 'bg-red-50 border-red-200 text-red-800'
-                                        }`}>
-                                        <div className="flex items-center gap-2">
-                                            <Coffee className="h-4 w-4" />
-                                            <span className="font-medium">
-                                                {scanRecord.remainingDrinks > 0
-                                                    ? `${scanRecord.remainingDrinks} drinks remaining`
-                                                    : 'No drinks remaining'
-                                                }
-                                            </span>
+                                    {/* Redemption Status Display */}
+                                    <div className="mt-3 space-y-2">
+                                        <div className={`p-3 rounded-lg border ${scanRecord.remainingDrinks > 0
+                                            ? 'bg-green-50 border-green-200 text-green-800'
+                                            : 'bg-red-50 border-red-200 text-red-800'
+                                            }`}>
+                                            <div className="flex items-center gap-2">
+                                                <Coffee className="h-4 w-4" />
+                                                <span className="font-medium">
+                                                    {scanRecord.remainingDrinks > 0
+                                                        ? `${scanRecord.remainingDrinks} drinks remaining`
+                                                        : 'No drinks remaining'
+                                                    }
+                                                </span>
+                                            </div>
                                         </div>
-                                        <p className="text-sm mt-1">
-                                            {scanRecord.remainingDrinks > 0
-                                                ? `This guest can redeem ${scanRecord.remainingDrinks} more drinks.`
-                                                : 'This guest has used all their drink allocations.'
-                                            }
-                                        </p>
+                                        <div className={`p-3 rounded-lg border ${scanRecord.remainingMeals > 0
+                                            ? 'bg-green-50 border-green-200 text-green-800'
+                                            : 'bg-red-50 border-red-200 text-red-800'
+                                            }`}>
+                                            <div className="flex items-center gap-2">
+                                                <Utensils className="h-4 w-4" />
+                                                <span className="font-medium">
+                                                    {scanRecord.remainingMeals > 0
+                                                        ? `${scanRecord.remainingMeals} meals remaining`
+                                                        : 'No meals remaining'
+                                                    }
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}
 
                             <div>
-                                <h3 className="font-semibold text-sm text-gray-600">Scan Time</h3>
-                                <p className="text-sm">{new Date(scanRecord.scannedAt).toLocaleString()}</p>
+                                <h3 className="font-semibold text-sm text-gray-600">Last Redemption</h3>
+                                <p className="text-sm">{new Date(scanRecord.lastRedemptionAt || scanRecord.scannedAt).toLocaleString()}</p>
+                                {scanRecord.lastRedemptionType && (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Last redeemed: {scanRecord.lastRedemptionType}
+                                    </p>
+                                )}
                             </div>
 
                             <Button onClick={resetScan} variant="outline" className="w-full">
@@ -508,17 +579,17 @@ export default function POSPage() {
                 {scanHistory.length > 0 && (
                     <Card>
                         <CardHeader>
-                            <CardTitle>Recent Drinks Redemptions</CardTitle>
+                            <CardTitle>Recent Redemptions</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-2 max-h-96 overflow-y-auto">
-                                {scanHistory.map((scan) => (
-                                    <div key={scan.id} className="flex items-center justify-between p-3 border rounded-lg">
+                                {scanHistory.map((scan, index) => (
+                                    <div key={`${scan.id}-${index}`} className="flex items-center justify-between p-3 border rounded-lg">
                                         <div className="flex-1">
                                             <p className="font-medium">{scan.attendeeName}</p>
                                             <p className="text-sm text-gray-500">{scan.email}</p>
                                             <p className="text-xs text-gray-400">
-                                                {new Date(scan.scannedAt).toLocaleString()}
+                                                {new Date(scan.lastRedemptionAt || scan.scannedAt).toLocaleString()}
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -527,10 +598,24 @@ export default function POSPage() {
                                             ) : (
                                                 <XCircle className="h-4 w-4 text-red-500" />
                                             )}
-                                            <Badge variant="outline" className="text-xs flex items-center gap-1">
-                                                <Coffee className="h-3 w-3" />
-                                                {scan.remainingDrinks}
-                                            </Badge>
+                                            {scan.lastRedemptionType && (
+                                                <Badge variant="outline" className="text-xs flex items-center gap-1">
+                                                    {scan.lastRedemptionType === 'drink' ? (
+                                                        <Coffee className="h-3 w-3" />
+                                                    ) : (
+                                                        <Utensils className="h-3 w-3" />
+                                                    )}
+                                                    {scan.lastRedemptionType}
+                                                </Badge>
+                                            )}
+                                            <div className="flex gap-1">
+                                                <Badge variant="outline" className="text-xs">
+                                                    D:{scan.remainingDrinks}
+                                                </Badge>
+                                                <Badge variant="outline" className="text-xs">
+                                                    M:{scan.remainingMeals}
+                                                </Badge>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
