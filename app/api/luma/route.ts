@@ -51,7 +51,6 @@ export async function GET(request: NextRequest) {
     // Return the guest data directly
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error fetching Luma data:", error);
     return NextResponse.json(
       { error: "Failed to fetch Luma data" },
       { status: 500 }

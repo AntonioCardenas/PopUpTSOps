@@ -2,6 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom animations for toast celebrations */
+@keyframes celebration-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+  }
+}
+
+@keyframes celebration-bounce {
+  0%,
+  20%,
+  53%,
+  80%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  40%,
+  43% {
+    transform: translate3d(0, -8px, 0);
+  }
+  70% {
+    transform: translate3d(0, -4px, 0);
+  }
+  90% {
+    transform: translate3d(0, -2px, 0);
+  }
+}
+
+@keyframes celebration-sparkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(180deg);
+  }
+}
+
+.celebration-toast {
+  animation: celebration-bounce 1s ease-in-out;
+}
+
+.celebration-toast::before {
+  content: "✨";
+  position: absolute;
+  top: -5px;
+  right: 20px;
+  font-size: 1.2rem;
+  animation: celebration-sparkle 1.5s ease-in-out;
+}
+
+.celebration-toast::after {
+  content: "🎉";
+  position: absolute;
+  bottom: -5px;
+  left: 20px;
+  font-size: 1.2rem;
+  animation: celebration-sparkle 1.5s ease-in-out 0.5s;
+}
+
 /* Defer non-critical CSS */
 @layer utilities {
   .text-balance {

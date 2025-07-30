@@ -1,15 +1,18 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import QRScanner from "@/components/qr-scanner"
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, getDoc } from "firebase/firestore"
-import { db } from "@/lib/firebase"
-import { toast } from "@/hooks/use-toast"
-import { CheckCircle, XCircle, AlertCircle, Camera, Coffee, Utensils } from "lucide-react"
-import { type LumaGuest } from "@/lib/luma-utils"
+import { useState, useEffect } from 'react'
+import { collection, query, getDocs, addDoc, doc, getDoc, updateDoc, where } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import QRScanner from '@/components/qr-scanner'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { useToast } from '@/hooks/use-toast'
+import { Coffee, Utensils, Camera, CheckCircle, AlertCircle, XCircle } from 'lucide-react'
+
+// Environment variables
+const DRINKS_LIMIT = parseInt(process.env.NEXT_PUBLIC_MAX_DRINKS_PER_GUEST || '3')
+const MEALS_LIMIT = parseInt(process.env.NEXT_PUBLIC_MAX_MEALS_PER_GUEST || '1')
 
 interface ScannedData {
     email: string
@@ -38,21 +41,51 @@ interface ScanRecord {
     lastRedemptionAt?: string
 }
 
+interface GuestRecordResult {
+    record: ScanRecord
+    isNewGuest: boolean
+}
+
+interface LumaGuest {
+    api_id: string
+    guest: {
+        api_id: string
+        approval_status: string
+        email: string
+        name: string
+        checked_in_at: string
+        event_ticket: {
+            name: string
+            checked_in_at: string | null
+        }
+    }
+}
+
 export default function POSPage() {
     const [isScanning, setIsScanning] = useState(false)
-    const [lumaData, setLumaData] = useState<LumaGuest | null>(null)
-    const [scanRecord, setScanRecord] = useState<ScanRecord | null>(null)
     const [isProcessing, setIsProcessing] = useState(false)
-    const [scanHistory, setScanHistory] = useState<ScanRecord[]>([])
-    const [audio] = useState(typeof window !== 'undefined' ? new Audio('/beep.mp3') : null)
-    const [todayScans, setTodayScans] = useState(0)
     const [redemptionType, setRedemptionType] = useState<'drink' | 'meal'>('drink')
+    const [scanRecord, setScanRecord] = useState<ScanRecord | null>(null)
+    const [lumaData, setLumaData] = useState<LumaGuest | null>(null)
+    const [scanHistory, setScanHistory] = useState<ScanRecord[]>([])
+    const [todayScans, setTodayScans] = useState(0)
+    const { toast } = useToast()
 
-    // Get limits from environment variables, default to 3 drinks and 1 meal
-    const DRINKS_LIMIT = parseInt(process.env.NEXT_PUBLIC_MAX_DRINKS_PER_GUEST || '3')
-    const MEALS_LIMIT = parseInt(process.env.NEXT_PUBLIC_MAX_MEALS_PER_GUEST || '1')
+    // Audio for success sound
+    const [audio] = useState(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const audioElement = new Audio('/beep.mp3')
+                audioElement.preload = 'auto'
+                audioElement.volume = 0.5
+                return audioElement
+            } catch (error) {
+                return null
+            }
+        }
+        return null
+    })
 
-    // Helper function to safely format dates
     const safeFormatDate = (dateString: string | undefined, fallback: string = 'Date unavailable'): string => {
         if (!dateString) return fallback
         try {
@@ -64,7 +97,6 @@ export default function POSPage() {
         }
     }
 
-    // Helper function to obfuscate personal information
     const obfuscateName = (fullName: string): string => {
         if (!fullName || typeof fullName !== 'string') return 'Unknown Guest'
         const nameParts = fullName.trim().split(' ')
@@ -74,18 +106,15 @@ export default function POSPage() {
         return `${firstName} ${lastName.charAt(0)}.`
     }
 
-    const obfuscateEmail = (email: string): string => {
+    const obfuscateEmail = (email: string | undefined): string => {
         if (!email || typeof email !== 'string') return 'unknown@email.com'
-        const [localPart, domain] = email.split('@')
-        if (!domain) return email
-
-        if (localPart.length <= 2) return email
-
-        const maskedLocal = localPart.charAt(0) + '*'.repeat(localPart.length - 2) + localPart.charAt(localPart.length - 1)
-        return `${maskedLocal}@${domain}`
+        const [local, domain] = email.split('@')
+        if (!local || !domain) return 'unknown@email.com'
+        if (local.length <= 2) return email
+        return local.charAt(0) + '*'.repeat(local.length - 2) + local.charAt(local.length - 1) + '@' + domain
     }
 
-    const findOrCreateGuestRecord = async (publicKey: string, email: string, attendeeName: string, lumaVerified: boolean, eventId?: string): Promise<ScanRecord> => {
+    const findOrCreateGuestRecord = async (publicKey: string, email: string, attendeeName: string, lumaVerified: boolean, eventId?: string): Promise<GuestRecordResult> => {
         try {
             // Try to find existing record by publicKey
             const guestQuery = query(
@@ -97,7 +126,7 @@ export default function POSPage() {
             if (!guestSnapshot.empty) {
                 // Return existing record
                 const existingDoc = guestSnapshot.docs[0]
-                return { id: existingDoc.id, ...existingDoc.data() } as ScanRecord
+                return { record: { id: existingDoc.id, ...existingDoc.data() } as ScanRecord, isNewGuest: false }
             }
 
             // Create new record if not found
@@ -113,9 +142,8 @@ export default function POSPage() {
             }
 
             const docRef = await addDoc(collection(db, "redemptionScans"), newRecord)
-            return { id: docRef.id, ...newRecord }
+            return { record: { id: docRef.id, ...newRecord }, isNewGuest: true }
         } catch (error) {
-            console.error('Error finding or creating guest record:', error)
             throw error
         }
     }
@@ -147,7 +175,6 @@ export default function POSPage() {
             // Return updated record
             return { ...currentData, ...updateData }
         } catch (error) {
-            console.error('Error updating guest redemption:', error)
             throw error
         }
     }
@@ -157,19 +184,15 @@ export default function POSPage() {
         setIsProcessing(true)
 
         try {
-            console.log('Scanned text:', scannedText)
-
             // Check if it's a Lu.ma URL
             if (scannedText.includes('https://lu.ma/check-in/')) {
                 // Decode URL first to handle encoded characters
                 const decodedUrl = decodeURIComponent(scannedText)
-                console.log('Decoded URL:', decodedUrl)
 
                 // Extract event ID and proxy key from Lu.ma URL
                 const urlMatch = decodedUrl.match(/https:\/\/lu\.ma\/check-in\/([^?]+)\?pk=([^&]+)/)
                 if (urlMatch) {
                     const [, eventId, proxyKey] = urlMatch
-                    console.log('Lu.ma URL detected:', { eventId, proxyKey })
 
                     // Validate event ID against environment variable
                     const configuredEventId = process.env.NEXT_PUBLIC_EVENT_ID
@@ -185,34 +208,24 @@ export default function POSPage() {
 
                     // Make API request to local /api/luma endpoint
                     try {
-                        console.log('Making request to /api/luma:', { eventId, proxyKey });
-
                         const response = await fetch(`/api/luma?event_api_id=${eventId}&proxy_key=${proxyKey}`, {
                             method: 'GET',
                             headers: {
                                 'Content-Type': 'application/json',
                             }
-                        });
+                        })
 
-                        console.log('/api/luma response status:', response.status);
-                        console.log('/api/luma response:', response);
                         if (!response.ok) {
-                            const errorText = await response.text();
-                            console.error('/api/luma error response:', {
-                                status: response.status,
-                                statusText: response.statusText,
-                                body: errorText
-                            });
-                            throw new Error(`/api/luma responded with status: ${response.status} - ${errorText}`);
+                            const errorText = await response.text()
+                            throw new Error(`/api/luma responded with status: ${response.status} - ${errorText}`)
                         }
 
-                        const lumaData = await response.json();
-                        console.log('/api/luma response:', lumaData);
+                        const lumaData = await response.json()
 
                         // Check if we have guest data - directly use user_email from Lu.ma API
                         if (lumaData && lumaData.guest && lumaData.guest.user_email) {
-                            const guestEmail = lumaData.guest.user_email.toLowerCase().trim();
-                            const guestName = (lumaData.guest.user_name || guestEmail.split('@')[0] || 'Unknown Guest').trim();
+                            const guestEmail = lumaData.guest.user_email.toLowerCase().trim()
+                            const guestName = (lumaData.guest.user_name || guestEmail.split('@')[0] || 'Unknown Guest').trim()
 
                             // Validate email format
                             if (!guestEmail || !guestEmail.includes('@')) {
@@ -224,15 +237,6 @@ export default function POSPage() {
                                 setIsProcessing(false)
                                 return
                             }
-
-                            console.log('Lu.ma Guest Data Retrieved:', {
-                                userEmail: guestEmail,
-                                name: guestName,
-                                eventId,
-                                proxyKey,
-                                approvalStatus: lumaData.guest.approval_status,
-                                source: 'Lu.ma API'
-                            });
 
                             // Create LumaGuest object
                             const lumaGuest: LumaGuest = {
@@ -266,7 +270,7 @@ export default function POSPage() {
                             }
 
                             // Find or create guest record using actual guest data
-                            const guestRecord = await findOrCreateGuestRecord(
+                            const { record: guestRecord, isNewGuest } = await findOrCreateGuestRecord(
                                 data.publicKey!,
                                 data.email,
                                 lumaGuest.guest.name,
@@ -274,12 +278,38 @@ export default function POSPage() {
                                 data.eventId
                             )
 
+                            // Show welcome toast for new guests
+                            if (isNewGuest) {
+                                toast({
+                                    title: `👋 Welcome ${obfuscateName(lumaGuest.guest.name)}!`,
+                                    description: `You have ${DRINKS_LIMIT} drinks and ${MEALS_LIMIT} meals available.`,
+                                    variant: "success",
+                                })
+                            }
+
+                            // Show available entitlements if guest has remaining drinks or meals
+                            if (guestRecord.remainingDrinks > 0 || guestRecord.remainingMeals > 0) {
+                                const availableItems = []
+                                if (guestRecord.remainingDrinks > 0) {
+                                    availableItems.push(`${guestRecord.remainingDrinks} drink${guestRecord.remainingDrinks > 1 ? 's' : ''}`)
+                                }
+                                if (guestRecord.remainingMeals > 0) {
+                                    availableItems.push(`${guestRecord.remainingMeals} meal${guestRecord.remainingMeals > 1 ? 's' : ''}`)
+                                }
+
+                                toast({
+                                    title: `🍹 Available for ${obfuscateName(lumaGuest.guest.name)}`,
+                                    description: `Ready to claim: ${availableItems.join(' and ')}`,
+                                    variant: "success",
+                                })
+                            }
+
                             // Check if redemption is allowed
                             if (redemptionType === 'drink' && guestRecord.remainingDrinks <= 0) {
                                 toast({
-                                    title: "No drinks remaining",
-                                    description: `This guest has already redeemed all ${DRINKS_LIMIT} drinks.`,
-                                    variant: "destructive",
+                                    title: "🍹 No drinks remaining",
+                                    description: `${obfuscateName(lumaGuest.guest.name)} has already claimed all ${DRINKS_LIMIT} drinks.`,
+                                    variant: "warning",
                                 })
                                 setScanRecord(guestRecord)
                                 setIsProcessing(false)
@@ -288,9 +318,21 @@ export default function POSPage() {
 
                             if (redemptionType === 'meal' && guestRecord.remainingMeals <= 0) {
                                 toast({
-                                    title: "No meals remaining",
-                                    description: `This guest has already redeemed all ${MEALS_LIMIT} meals.`,
-                                    variant: "destructive",
+                                    title: "🍽️ No meals remaining",
+                                    description: `${obfuscateName(lumaGuest.guest.name)} has already claimed all ${MEALS_LIMIT} meals.`,
+                                    variant: "warning",
+                                })
+                                setScanRecord(guestRecord)
+                                setIsProcessing(false)
+                                return
+                            }
+
+                            // Special case: if guest has no remaining drinks or meals at all
+                            if (guestRecord.remainingDrinks <= 0 && guestRecord.remainingMeals <= 0) {
+                                toast({
+                                    title: "🎭 All entitlements claimed",
+                                    description: `${obfuscateName(lumaGuest.guest.name)} has claimed all available drinks and meals.`,
+                                    variant: "warning",
                                 })
                                 setScanRecord(guestRecord)
                                 setIsProcessing(false)
@@ -307,29 +349,39 @@ export default function POSPage() {
                             // Update today's scan count
                             setTodayScans(prev => prev + 1)
 
-                            // Play success sound
+                            // Play success sound with proper error handling
                             if (audio) {
-                                audio.play().catch(console.error)
+                                try {
+                                    // Reset audio to beginning
+                                    audio.currentTime = 0
+                                    // Play with proper error handling
+                                    const playPromise = audio.play()
+                                    if (playPromise !== undefined) {
+                                        playPromise.catch((error) => {
+                                            // Only log if it's not an abort error (which is expected when component unmounts)
+                                            if (error.name !== 'AbortError') {
+                                                // Handle error silently
+                                            }
+                                        })
+                                    }
+                                } catch (error) {
+                                    // Ignore audio errors as they're not critical
+                                }
                             }
 
                             const itemType = redemptionType === 'drink' ? 'drink' : 'meal'
                             const remainingCount = redemptionType === 'drink' ? updatedRecord.remainingDrinks : updatedRecord.remainingMeals
 
+                            // Show celebration toast for successful redemption
                             toast({
-                                title: `Lu.ma ${itemType} redemption successful`,
+                                title: `🎉 ${itemType.charAt(0).toUpperCase() + itemType.slice(1)} Claimed Successfully!`,
                                 description: `${obfuscateName(lumaGuest.guest.name)} - ${remainingCount} ${itemType}s remaining`,
-                                variant: "success",
+                                variant: "celebration",
                             })
 
                             setIsProcessing(false)
                             return
                         } else {
-                            console.log('No guest user_email found in Lu.ma API response', {
-                                hasGuest: !!lumaData.guest,
-                                hasUserEmail: !!lumaData.guest?.user_email,
-                                availableFields: lumaData.guest ? Object.keys(lumaData.guest) : [],
-                                responseData: lumaData
-                            });
                             toast({
                                 title: "Guest not found",
                                 description: "This Lu.ma check-in could not be verified. No guest user_email found in response.",
@@ -339,13 +391,6 @@ export default function POSPage() {
                             return
                         }
                     } catch (apiError) {
-                        console.error('Lu.ma API request failed:', apiError);
-                        if (apiError instanceof Error) {
-                            console.error('API Error details:', {
-                                message: apiError.message,
-                                stack: apiError.stack
-                            });
-                        }
                         toast({
                             title: "API Error",
                             description: "Failed to verify Lu.ma check-in. Please try again.",
@@ -375,7 +420,6 @@ export default function POSPage() {
             return
 
         } catch (error) {
-            console.error('Error processing scan:', error)
             toast({
                 title: "Scan failed",
                 description: "Invalid QR code or processing error.",
@@ -389,6 +433,10 @@ export default function POSPage() {
     const resetScan = () => {
         setLumaData(null)
         setScanRecord(null)
+        // Small delay to ensure UI updates before opening scanner
+        setTimeout(() => {
+            setIsScanning(true) // Open camera scanner for next scan
+        }, 100)
     }
 
     const loadRecentScans = async () => {
@@ -437,7 +485,7 @@ export default function POSPage() {
 
             setTodayScans(todayScansCount)
         } catch (error) {
-            console.error('Error loading recent scans:', error)
+            // Handle error silently
         }
     }
 
@@ -446,12 +494,26 @@ export default function POSPage() {
         loadRecentScans()
     }, [])
 
+    // Cleanup audio on unmount
+    useEffect(() => {
+        return () => {
+            if (audio) {
+                try {
+                    audio.pause()
+                    audio.currentTime = 0
+                } catch (error) {
+                    // Handle error silently
+                }
+            }
+        }
+    }, [audio])
+
     return (
         <div className="min-h-screen bg-[#81a8f8] p-2 sm:p-4">
             <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
                 {/* Header */}
                 <div className="text-center mb-4 sm:mb-8">
-                    <p className="text-sm sm:text-base mb-2 sm:mb-4 text-slate-800"> Redemption System</p>
+                    <p className="text-sm sm:text-base mb-2 sm:mb-4 text-slate-800">Redemption System</p>
                     <h1 className="text-2xl sm:text-[32px] mb-2 sm:mb-4 font-bold text-black">POS Scanner</h1>
                     <p className="text-xs sm:text-sm mb-3 sm:mb-4 text-slate-900 max-w-2xl mx-auto">
                         Scan Lu.ma check-in URLs to redeem drinks and meals.
@@ -646,7 +708,6 @@ export default function POSPage() {
                                 <Button onClick={resetScan} variant="outline" className="flex-1 h-14 sm:h-12 text-sm sm:text-base bg-black text-white">
                                     Scan Another
                                 </Button>
-
                             </div>
                         </CardContent>
                     </Card>

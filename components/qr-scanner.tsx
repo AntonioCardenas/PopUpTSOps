@@ -15,25 +15,20 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const scannerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-
-  const handleDecode = useCallback(
-    (result: string) => {
-      // Stop camera before processing result
-      stopCamera();
-      onScanSuccess(result);
-      onClose();
-    },
-    [onScanSuccess, onClose]
-  );
+  const scannerInstanceRef = useRef<any>(null);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+      });
       streamRef.current = null;
     }
     setIsCameraActive(false);
+    setIsScanning(false);
   }, []);
 
   const startCamera = useCallback(async () => {
@@ -51,14 +46,40 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
       streamRef.current = stream;
       setIsCameraActive(true);
     } catch (error) {
-      console.error("Error starting camera:", error);
       setHasPermission(false);
       setIsCameraActive(false);
     }
   }, [stopCamera]);
 
+  const handleDecode = useCallback(
+    (result: string) => {
+      // Prevent multiple scans
+      if (isScanning) {
+        return;
+      }
+
+      setIsScanning(true);
+
+      // Stop camera immediately
+      stopCamera();
+
+      // Process the result
+      try {
+        onScanSuccess(result);
+      } catch (error) {
+        // Handle error silently
+      } finally {
+        // Always close the scanner
+        onClose();
+      }
+    },
+    [onScanSuccess, onClose, stopCamera, isScanning]
+  );
+
   const handleError = (error: unknown) => {
-    console.error("QR Code scanning failed:", error);
+    // Don't show error if we're already processing a scan
+    if (isScanning) return;
+
     setErrorMessage(`Scanning error: ${error?.toString()}`);
     toast({
       title: "Scanning Error",
@@ -95,7 +116,6 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
       }, 100);
 
     } catch (error) {
-      console.error("Error accessing camera:", error);
       setHasPermission(false);
       setIsCameraActive(false);
       localStorage.setItem("cameraPermission", "denied");
@@ -114,6 +134,7 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
     }
   };
 
+  // Handle click outside to close
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -131,6 +152,22 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
     };
   }, [onClose, stopCamera]);
 
+  // Handle escape key to close
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        stopCamera();
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [onClose, stopCamera]);
+
+  // Check stored permission on mount
   useEffect(() => {
     const storedPermission = localStorage.getItem("cameraPermission");
     if (storedPermission === "granted") {
@@ -164,7 +201,10 @@ export default function QRScanner({ onScanSuccess, onClose }: QRScannerProps) {
           <div className="flex justify-between items-center mb-3 sm:mb-4">
             <h2 className="text-xl sm:text-2xl font-bold">Scan QR Code</h2>
             <button
-              onClick={onClose}
+              onClick={() => {
+                stopCamera();
+                onClose();
+              }}
               className="text-base hover:text-gray-600 p-1"
             >
               <X className="h-5 w-5" />
